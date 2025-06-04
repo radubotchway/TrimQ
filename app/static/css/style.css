@@ -1,0 +1,60 @@
+body {
+    background-color: #f8f9fa;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+footer {
+    margin-top: auto;
+}
+
+.queue-card {
+    transition: all 0.3s ease;
+    margin-bottom: 1rem;
+}
+
+.queue-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.wait-time {
+    font-weight: bold;
+    color: #dc3545;
+}
+
+.barber-badge {
+    font-size: 0.8rem;
+    background-color: #6c757d;
+    color: white;
+}
+
+.service-badge {
+    font-size: 0.8rem;
+    background-color: #0d6efd;
+    color: white;
+}
+
+#queue-display {
+    font-size: 1.2rem;
+}
+
+.current-customer {
+    background-color: #fff3cd !important;
+    border-left: 4px solid #ffc107;
+}
+
+.completed-customer {
+    opacity: 0.7;
+}
+
+/* Animation for new customers */
+@keyframes highlight {
+    from { background-color: #d4edda; }
+    to { background-color: transparent; }
+}
+
+.new-customer {
+    animation: highlight 2s;
+}

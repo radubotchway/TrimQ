@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0">{{ branch_info.name }} Branch Queue</h2>
+                    <div class="text-end">
+                        <small class="d-block">{{ now.strftime('%A, %B %d, %Y') }}</small>
+                        <small class="d-block">{{ now.strftime('%I:%M %p') }}</small>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if branch_info.address %}
+                    <p class="text-muted mb-4">
+                        <i class="bi bi-geo-alt"></i> {{ branch_info.address }}
+                        {% if branch_info.phone %}
+                            • <i class="bi bi-telephone"></i> {{ branch_info.phone }}
+                        {% endif %}
+                    </p>
+                {% endif %}
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 class="mb-3">Currently Serving</h4>
+                        {% if in_progress %}
+                            <div class="list-group mb-4">
+                                {% for customer in in_progress %}
+                                    <div class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ customer.name }}</h5>
+                                            <small>#{{ customer.id }}</small>
+                                        </div>
+                                        <p class="mb-1">
+                                            <span class="badge bg-primary">{{ customer.service.name }}</span>
+                                            with <span class="badge bg-secondary">{{ customer.barber.name }}</span>
+                                        </p>
+                                        <small class="text-muted">
+                                            Started at {{ customer.assigned_at.strftime('%H:%M') }}
+                                        </small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                No customers currently being served.
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h4 class="mb-3">Waiting Customers ({{ waiting|length }})</h4>
+                        {% if waiting %}
+                            <div class="list-group">
+                                {% for customer in waiting %}
+                                    <div class="list-group-item list-group-item-action">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <h5 class="mb-1">{{ customer.name }}</h5>
+                                            <small>#{{ customer.id }}</small>
+                                        </div>
+                                        <p class="mb-1">
+                                            <span class="badge bg-primary">{{ customer.service.name }}</span>
+                                        </p>
+                                        <small class="text-muted">
+                                            Arrived: {{ customer.created_at.strftime('%H:%M') }} • 
+                                            Est. Wait: <span class="fw-bold">{{ get_wait_time(customer) }}</span>
+                                        </small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                No customers waiting.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center text-muted">
+            <p>This display automatically updates every 30 seconds.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-refresh the queue every 30 seconds
+    setTimeout(function() {
+        window.location.reload();
+    }, 30000);
+    
+    // Update the current time every minute
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeElement = document.querySelector('.current-time');
+        if (timeElement) {
+            timeElement.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+    }
+    
+    setInterval(updateCurrentTime, 60000);
+</script>
+{% endblock %}
