@@ -7,6 +7,8 @@ from app.models import Customer, Barber, Service, Branch, User
 from app.forms import (CustomerForm, BarberForm, ServiceForm, 
                       BranchForm, LoginForm)
 from app.utils import get_wait_time
+from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 bp = Blueprint('main', __name__)
 
@@ -186,3 +188,29 @@ def manage_branches():
     
     branches = Branch.query.order_by(Branch.name).all()
     return render_template('branches.html', form=form, branches=branches)
+
+@bp.route('/toggle_barber/<int:barber_id>', methods=['POST'])
+@login_required
+def toggle_barber(barber_id):
+    if not current_user.is_admin:
+        flash('Only admin can manage barbers', 'danger')
+        return redirect(url_for('main.index'))
+    
+    barber = Barber.query.get_or_404(barber_id)
+    barber.is_active = not barber.is_active
+    db.session.commit()
+    flash(f'Barber {barber.name} has been {"activated" if barber.is_active else "deactivated"}', 'success')
+    return redirect(url_for('main.manage_barbers'))
+
+@bp.route('/toggle_service/<int:service_id>', methods=['POST'])
+@login_required
+def toggle_service(service_id):
+    if not current_user.is_admin:
+        flash('Only admin can manage services', 'danger')
+        return redirect(url_for('main.index'))
+    
+    service = Service.query.get_or_404(service_id)
+    service.is_active = not service.is_active
+    db.session.commit()
+    flash(f'Service {service.name} has been {"activated" if service.is_active else "deactivated"}', 'success')
+    return redirect(url_for('main.manage_services'))
