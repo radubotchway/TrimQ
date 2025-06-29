@@ -11,13 +11,14 @@
                 {% if waiting %}
                     <div class="list-group">
                         {% for customer in waiting %}
-                            <div class="list-group-item">
+                            <div class="list-group-item queue-item">
                                 <div class="d-flex w-100 justify-content-between">
                                     <h5 class="mb-1">{{ customer.name }}</h5>
                                     <small>#{{ customer.id }}</small>
                                 </div>
                                 <p class="mb-1">
-                                    <strong>{{ customer.service.name }}</strong>
+                                    <span class="badge bg-primary">{{ customer.service.name }}</span>
+                                    <span class="badge bg-secondary">{{ customer.phone }}</span>
                                     {% if customer.notes %}
                                         <br><small class="text-muted">{{ customer.notes }}</small>
                                     {% endif %}
@@ -26,7 +27,7 @@
                                     Arrived: {{ customer.created_at.strftime('%H:%M') }} • 
                                     Wait: {{ get_wait_time(customer) }}
                                 </small>
-                                <form method="POST" action="{{ url_for('main.assign_customer', customer_id=customer.id) }}" class="mt-2">
+                                <form method="POST" action="{{ url_for('assign_customer', customer_id=customer.id) }}" class="mt-2">
                                     <div class="input-group">
                                         <select name="barber_id" class="form-select" required>
                                             <option value="">Select Barber</option>
@@ -42,7 +43,7 @@
                     </div>
                 {% else %}
                     <div class="alert alert-info">
-                        No customers waiting.
+                        <i class="bi bi-info-circle"></i> No customers waiting.
                     </div>
                 {% endif %}
             </div>
@@ -58,13 +59,14 @@
                 {% if in_progress %}
                     <div class="list-group">
                         {% for customer in in_progress %}
-                            <div class="list-group-item">
+                            <div class="list-group-item queue-item in-progress">
                                 <div class="d-flex w-100 justify-content-between">
                                     <h5 class="mb-1">{{ customer.name }}</h5>
                                     <small>#{{ customer.id }}</small>
                                 </div>
                                 <p class="mb-1">
-                                    <strong>{{ customer.service.name }}</strong> with {{ customer.barber.name }}
+                                    <span class="badge bg-primary">{{ customer.service.name }}</span>
+                                    <span class="badge bg-success">{{ customer.barber.name }}</span>
                                     {% if customer.notes %}
                                         <br><small class="text-muted">{{ customer.notes }}</small>
                                     {% endif %}
@@ -73,9 +75,9 @@
                                     Started: {{ customer.assigned_at.strftime('%H:%M') }}
                                 </small>
                                 <div class="mt-2">
-                                    <a href="{{ url_for('main.complete_customer', customer_id=customer.id) }}" 
+                                    <a href="{{ url_for('complete_customer', customer_id=customer.id) }}" 
                                        class="btn btn-primary btn-sm">
-                                        Complete Service
+                                        <i class="bi bi-check-circle"></i> Complete Service
                                     </a>
                                 </div>
                             </div>
@@ -83,7 +85,7 @@
                     </div>
                 {% else %}
                     <div class="alert alert-info">
-                        No customers in progress.
+                        <i class="bi bi-info-circle"></i> No customers in progress.
                     </div>
                 {% endif %}
             </div>

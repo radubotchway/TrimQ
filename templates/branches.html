@@ -45,7 +45,7 @@
                             <thead>
                                 <tr>
                                     <th>Name</th>
-                                    <th>Phone</th>
+                                    <th>Details</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -54,11 +54,15 @@
                                     <tr>
                                         <td>
                                             <strong>{{ branch.name }}</strong>
+                                        </td>
+                                        <td>
                                             {% if branch.address %}
-                                                <br><small class="text-muted">{{ branch.address }}</small>
+                                                <small class="text-muted d-block">{{ branch.address }}</small>
+                                            {% endif %}
+                                            {% if branch.phone %}
+                                                <small class="text-muted d-block">{{ branch.phone }}</small>
                                             {% endif %}
                                         </td>
-                                        <td>{{ branch.phone or 'N/A' }}</td>
                                         <td>
                                             {% if branch.is_active %}
                                                 <span class="badge bg-success">Active</span>

@@ -62,7 +62,7 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            <form method="POST" action="{{ url_for('main.toggle_barber', barber_id=barber.id) }}" class="d-inline">
+                                            <form method="POST" action="{{ url_for('toggle_barber', barber_id=barber.id) }}" class="d-inline">
                                                 {% if barber.is_active %}
                                                     <button type="submit" class="btn btn-sm btn-warning">Deactivate</button>
                                                 {% else %}

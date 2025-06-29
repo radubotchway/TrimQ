@@ -23,7 +23,7 @@
                                 {{ form.duration.label(class="form-label") }}
                                 <div class="input-group">
                                     {{ form.duration(class="form-control") }}
-                                    <span class="input-group-text">minutes</span>
+                                    <span class="input-group-text">min</span>
                                 </div>
                             </div>
                         </div>
@@ -67,7 +67,7 @@
                                 {% for service in services %}
                                     <tr>
                                         <td>{{ service.name }}</td>
-                                        <td>{{ service.duration }} min</td>
+                                        <td>{{ service.duration if service.duration else 'N/A' }} min</td>
                                         <td>${{ "%.2f"|format(service.price) if service.price else 'N/A' }}</td>
                                         <td>
                                             {% if service.is_active %}
@@ -77,7 +77,7 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            <form method="POST" action="{{ url_for('main.toggle_service', service_id=service.id) }}" class="d-inline">
+                                            <form method="POST" action="{{ url_for('toggle_service', service_id=service.id) }}" class="d-inline">
                                                 {% if service.is_active %}
                                                     <button type="submit" class="btn btn-sm btn-outline-warning">Deactivate</button>
                                                 {% else %}
