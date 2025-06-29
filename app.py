@@ -1,4 +1,4 @@
-# File: app.py - TrimQ Application with Forgot Password
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -8,6 +8,10 @@ from wtforms.validators import DataRequired, Length, Email, EqualTo
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import secrets
+import os
+
+load_dotenv()  # Load environment variables from .env file
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -19,9 +23,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'ronardbotchway@gmail.com'  
-app.config['MAIL_PASSWORD'] = 'fwsl inlj asgn baco' 
-app.config['MAIL_DEFAULT_SENDER'] = 'TrimQ System <ronardbotchway@gmail.com>'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')  # Set via environment variable
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')  # Set via environment variable
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'TrimQ System <noreply@trimq.com>')
 
 # Initialize extensions
 db = SQLAlchemy(app)
