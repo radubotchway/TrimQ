@@ -59,49 +59,32 @@
                         </thead>
                         <tbody>
                             {% for branch in branches %}
-                                <tr>
+                                <tr id="branch-{{ branch.id }}">
                                     <td><code>{{ branch.code }}</code></td>
-                                    <td>{{ branch.name }}</td>
-                                    <td>{{ branch.address }}</td>
-                                    <td>{{ branch.phone }}</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editBranchModal{{ branch.id }}">
+                                        <span class="branch-name">{{ branch.name }}</span>
+                                        <input type="text" class="form-control d-none branch-name-edit" value="{{ branch.name }}">
+                                    </td>
+                                    <td>
+                                        <span class="branch-address">{{ branch.address }}</span>
+                                        <input type="text" class="form-control d-none branch-address-edit" value="{{ branch.address }}">
+                                    </td>
+                                    <td>
+                                        <span class="branch-phone">{{ branch.phone }}</span>
+                                        <input type="text" class="form-control d-none branch-phone-edit" value="{{ branch.phone }}">
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary edit-branch-btn" data-branch-id="{{ branch.id }}">
                                             <i class="bi bi-pencil"></i> Edit
+                                        </button>
+                                        <button class="btn btn-sm btn-success d-none save-branch-btn" data-branch-id="{{ branch.id }}">
+                                            <i class="bi bi-check"></i> Save
+                                        </button>
+                                        <button class="btn btn-sm btn-secondary d-none cancel-branch-btn" data-branch-id="{{ branch.id }}">
+                                            <i class="bi bi-x"></i> Cancel
                                         </button>
                                     </td>
                                 </tr>
-                                
-                                <!-- Edit Branch Modal -->
-                                <div class="modal fade" id="editBranchModal{{ branch.id }}" tabindex="-1">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title">Edit Branch</h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                            </div>
-                                            <form method="POST" action="{{ url_for('edit_branch', branch_id=branch.id) }}">
-                                                <div class="modal-body">
-                                                    <div class="mb-3">
-                                                        <label class="form-label">Branch Name</label>
-                                                        <input type="text" name="name" class="form-control" value="{{ branch.name }}" required>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label class="form-label">Address</label>
-                                                        <input type="text" name="address" class="form-control" value="{{ branch.address }}" required>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label class="form-label">Phone</label>
-                                                        <input type="text" name="phone" class="form-control" value="{{ branch.phone }}">
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                    <button type="submit" class="btn btn-primary">Update Branch</button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -158,57 +141,45 @@
                         </thead>
                         <tbody>
                             {% for service in services %}
-                                <tr>
-                                    <td>{{ service.name }}</td>
-                                    <td>{{ service.duration }} min</td>
-                                    <td class="currency">GH₵{{ service.price }}</td>
+                                <tr id="service-{{ service.id }}">
+                                    <td>
+                                        <span class="service-name">{{ service.name }}</span>
+                                        <input type="text" class="form-control d-none service-name-edit" value="{{ service.name }}">
+                                    </td>
+                                    <td>
+                                        <span class="service-duration">{{ service.duration }} min</span>
+                                        <div class="d-none service-duration-edit">
+                                            <input type="number" class="form-control" value="{{ service.duration }}">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="service-price currency">GH₵{{ service.price }}</span>
+                                        <div class="d-none service-price-edit">
+                                            <div class="input-group">
+                                                <span class="input-group-text currency">GH₵</span>
+                                                <input type="number" class="form-control" step="0.01" value="{{ service.price }}">
+                                            </div>
+                                        </div>
+                                    </td>
                                     {% if current_user.is_master_admin() %}
                                         <td>
-                                            <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#editServiceModal{{ service.id }}">
+                                            <button class="btn btn-sm btn-outline-primary edit-service-btn" data-service-id="{{ service.id }}">
                                                 <i class="bi bi-pencil"></i> Edit
                                             </button>
+                                            <button class="btn btn-sm btn-success d-none save-service-btn" data-service-id="{{ service.id }}">
+                                                <i class="bi bi-check"></i> Save
+                                            </button>
+                                            <button class="btn btn-sm btn-secondary d-none cancel-service-btn" data-service-id="{{ service.id }}">
+                                                <i class="bi bi-x"></i> Cancel
+                                            </button>
                                             <a href="{{ url_for('delete_service', service_id=service.id) }}" 
-                                               class="btn btn-sm btn-outline-danger"
+                                               class="btn btn-sm btn-outline-danger ms-1"
                                                onclick="return confirm('Are you sure you want to delete this service?')">
-                                                <i class="bi bi-trash"></i> Delete
+                                                <i class="bi bi-trash"></i>
                                             </a>
                                         </td>
                                     {% endif %}
                                 </tr>
-                                
-                                <!-- Edit Service Modal (Master Admin Only) -->
-                                {% if current_user.is_master_admin() %}
-                                <div class="modal fade" id="editServiceModal{{ service.id }}" tabindex="-1">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title">Edit Service</h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                            </div>
-                                            <form method="POST" action="{{ url_for('edit_service', service_id=service.id) }}">
-                                                <div class="modal-body">
-                                                    <div class="mb-3">
-                                                        <label class="form-label">Service Name</label>
-                                                        <input type="text" name="name" class="form-control" value="{{ service.name }}" required>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label class="form-label">Duration (minutes)</label>
-                                                        <input type="number" name="duration" class="form-control" value="{{ service.duration }}" required>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label class="form-label">Price (GH₵)</label>
-                                                        <input type="number" name="price" step="0.01" class="form-control" value="{{ service.price }}" required>
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                    <button type="submit" class="btn btn-primary">Update Service</button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% endif %}
                             {% endfor %}
                         </tbody>
                     </table>
@@ -262,8 +233,6 @@
                                 <th>Name</th>
                                 {% if current_user.is_master_admin() %}
                                     <th>Branch</th>
-                                {% endif %}
-                                {% if current_user.is_master_admin() %}
                                     <th>Actions</th>
                                 {% endif %}
                             </tr>
@@ -295,4 +264,164 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Inline editing for branches
+document.querySelectorAll('.edit-branch-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const branchId = this.dataset.branchId;
+        const row = document.getElementById(`branch-${branchId}`);
+        
+        // Hide display elements, show edit elements
+        row.querySelector('.branch-name').classList.add('d-none');
+        row.querySelector('.branch-address').classList.add('d-none');
+        row.querySelector('.branch-phone').classList.add('d-none');
+        row.querySelector('.branch-name-edit').classList.remove('d-none');
+        row.querySelector('.branch-address-edit').classList.remove('d-none');
+        row.querySelector('.branch-phone-edit').classList.remove('d-none');
+        
+        // Switch buttons
+        this.classList.add('d-none');
+        row.querySelector('.save-branch-btn').classList.remove('d-none');
+        row.querySelector('.cancel-branch-btn').classList.remove('d-none');
+    });
+});
+
+document.querySelectorAll('.cancel-branch-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const branchId = this.dataset.branchId;
+        const row = document.getElementById(`branch-${branchId}`);
+        
+        // Show display elements, hide edit elements
+        row.querySelector('.branch-name').classList.remove('d-none');
+        row.querySelector('.branch-address').classList.remove('d-none');
+        row.querySelector('.branch-phone').classList.remove('d-none');
+        row.querySelector('.branch-name-edit').classList.add('d-none');
+        row.querySelector('.branch-address-edit').classList.add('d-none');
+        row.querySelector('.branch-phone-edit').classList.add('d-none');
+        
+        // Switch buttons
+        this.classList.add('d-none');
+        row.querySelector('.save-branch-btn').classList.add('d-none');
+        row.querySelector('.edit-branch-btn').classList.remove('d-none');
+    });
+});
+
+document.querySelectorAll('.save-branch-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const branchId = this.dataset.branchId;
+        const row = document.getElementById(`branch-${branchId}`);
+        
+        const name = row.querySelector('.branch-name-edit').value;
+        const address = row.querySelector('.branch-address-edit').value;
+        const phone = row.querySelector('.branch-phone-edit').value;
+        
+        // Create form and submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/edit_branch/${branchId}`;
+        
+        const nameInput = document.createElement('input');
+        nameInput.type = 'hidden';
+        nameInput.name = 'name';
+        nameInput.value = name;
+        
+        const addressInput = document.createElement('input');
+        addressInput.type = 'hidden';
+        addressInput.name = 'address';
+        addressInput.value = address;
+        
+        const phoneInput = document.createElement('input');
+        phoneInput.type = 'hidden';
+        phoneInput.name = 'phone';
+        phoneInput.value = phone;
+        
+        form.appendChild(nameInput);
+        form.appendChild(addressInput);
+        form.appendChild(phoneInput);
+        document.body.appendChild(form);
+        form.submit();
+    });
+});
+
+// Inline editing for services
+document.querySelectorAll('.edit-service-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const serviceId = this.dataset.serviceId;
+        const row = document.getElementById(`service-${serviceId}`);
+        
+        // Hide display elements, show edit elements
+        row.querySelector('.service-name').classList.add('d-none');
+        row.querySelector('.service-duration').classList.add('d-none');
+        row.querySelector('.service-price').classList.add('d-none');
+        row.querySelector('.service-name-edit').classList.remove('d-none');
+        row.querySelector('.service-duration-edit').classList.remove('d-none');
+        row.querySelector('.service-price-edit').classList.remove('d-none');
+        
+        // Switch buttons
+        this.classList.add('d-none');
+        row.querySelector('.save-service-btn').classList.remove('d-none');
+        row.querySelector('.cancel-service-btn').classList.remove('d-none');
+    });
+});
+
+document.querySelectorAll('.cancel-service-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const serviceId = this.dataset.serviceId;
+        const row = document.getElementById(`service-${serviceId}`);
+        
+        // Show display elements, hide edit elements
+        row.querySelector('.service-name').classList.remove('d-none');
+        row.querySelector('.service-duration').classList.remove('d-none');
+        row.querySelector('.service-price').classList.remove('d-none');
+        row.querySelector('.service-name-edit').classList.add('d-none');
+        row.querySelector('.service-duration-edit').classList.add('d-none');
+        row.querySelector('.service-price-edit').classList.add('d-none');
+        
+        // Switch buttons
+        this.classList.add('d-none');
+        row.querySelector('.save-service-btn').classList.add('d-none');
+        row.querySelector('.edit-service-btn').classList.remove('d-none');
+    });
+});
+
+document.querySelectorAll('.save-service-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const serviceId = this.dataset.serviceId;
+        const row = document.getElementById(`service-${serviceId}`);
+        
+        const name = row.querySelector('.service-name-edit').value;
+        const duration = row.querySelector('.service-duration-edit input').value;
+        const price = row.querySelector('.service-price-edit input').value;
+        
+        // Create form and submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/edit_service/${serviceId}`;
+        
+        const nameInput = document.createElement('input');
+        nameInput.type = 'hidden';
+        nameInput.name = 'name';
+        nameInput.value = name;
+        
+        const durationInput = document.createElement('input');
+        durationInput.type = 'hidden';
+        durationInput.name = 'duration';
+        durationInput.value = duration;
+        
+        const priceInput = document.createElement('input');
+        priceInput.type = 'hidden';
+        priceInput.name = 'price';
+        priceInput.value = price;
+        
+        form.appendChild(nameInput);
+        form.appendChild(durationInput);
+        form.appendChild(priceInput);
+        document.body.appendChild(form);
+        form.submit();
+    });
+});
+</script>
 {% endblock %}
