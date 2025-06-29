@@ -323,11 +323,17 @@ def settings():
     if current_user.is_master_admin():
         barbers = Barber.query.order_by(Barber.branch, Barber.name).all()
         branches = Branch.query.order_by(Branch.name).all()
+        users = User.query.order_by(User.username).all()
     else:
         barbers = Barber.query.filter_by(branch=current_user.branch).order_by(Barber.name).all()
         branches = []
+        users = [current_user]  # Only show their own account
     
-    return render_template('settings.html', services=services, barbers=barbers, branches=branches)
+    return render_template('settings.html', 
+                         services=services, 
+                         barbers=barbers, 
+                         branches=branches,
+                         users=users)
 
 @app.route('/add_service', methods=['POST'])
 @login_required
@@ -467,6 +473,164 @@ def edit_branch(branch_id):
         db.session.commit()
         flash(f'Branch "{name}" updated!', 'success')
     
+    return redirect(url_for('settings'))
+
+@app.route('/add_user', methods=['POST'])
+@login_required
+def add_user():
+    if not current_user.is_master_admin():
+        flash('Only master admin can add users.', 'error')
+        return redirect(url_for('settings'))
+    
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '').strip()
+    branch = request.form.get('branch', '').strip()
+    role = request.form.get('role', 'branch_admin').strip()
+    
+    # Validation
+    if not username or not password or not branch:
+        flash('Username, password, and branch are required.', 'error')
+        return redirect(url_for('settings'))
+    
+    if len(password) < 6:
+        flash('Password must be at least 6 characters long.', 'error')
+        return redirect(url_for('settings'))
+    
+    # Check if username already exists
+    if User.query.filter_by(username=username).first():
+        flash('Username already exists. Please choose a different one.', 'error')
+        return redirect(url_for('settings'))
+    
+    # Validate branch exists
+    if not Branch.query.filter_by(code=branch).first():
+        flash('Invalid branch selected.', 'error')
+        return redirect(url_for('settings'))
+    
+    # Create new user
+    user = User(
+        username=username,
+        password=generate_password_hash(password),
+        branch=branch,
+        role=role
+    )
+    
+    db.session.add(user)
+    db.session.commit()
+    flash(f'User "{username}" created successfully!', 'success')
+    return redirect(url_for('settings'))
+
+@app.route('/edit_user/<int:user_id>', methods=['POST'])
+@login_required
+def edit_user(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # Permission check
+    if not current_user.is_master_admin() and current_user.id != user_id:
+        flash('You can only edit your own account.', 'error')
+        return redirect(url_for('settings'))
+    
+    username = request.form.get('username', '').strip()
+    branch = request.form.get('branch', '').strip()
+    role = request.form.get('role', '').strip()
+    
+    if not username or not branch:
+        flash('Username and branch are required.', 'error')
+        return redirect(url_for('settings'))
+    
+    # Check if username is taken by another user
+    existing_user = User.query.filter_by(username=username).first()
+    if existing_user and existing_user.id != user.id:
+        flash('Username already exists. Please choose a different one.', 'error')
+        return redirect(url_for('settings'))
+    
+    # Update user info
+    user.username = username
+    user.branch = branch
+    
+    # Only master admin can change roles
+    if current_user.is_master_admin() and role:
+        user.role = role
+    
+    db.session.commit()
+    flash(f'User "{username}" updated successfully!', 'success')
+    return redirect(url_for('settings'))
+
+@app.route('/change_password/<int:user_id>', methods=['POST'])
+@login_required
+def change_password(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # Permission check
+    if not current_user.is_master_admin() and current_user.id != user_id:
+        flash('You can only change your own password.', 'error')
+        return redirect(url_for('settings'))
+    
+    current_password = request.form.get('current_password', '').strip()
+    new_password = request.form.get('new_password', '').strip()
+    confirm_password = request.form.get('confirm_password', '').strip()
+    
+    # For non-master admin, verify current password
+    if current_user.id == user_id and not current_user.is_master_admin():
+        if not current_password or not check_password_hash(user.password, current_password):
+            flash('Current password is incorrect.', 'error')
+            return redirect(url_for('settings'))
+    
+    # Validate new password
+    if len(new_password) < 6:
+        flash('New password must be at least 6 characters long.', 'error')
+        return redirect(url_for('settings'))
+    
+    if new_password != confirm_password:
+        flash('New passwords do not match.', 'error')
+        return redirect(url_for('settings'))
+    
+    # Update password
+    user.password = generate_password_hash(new_password)
+    db.session.commit()
+    
+    flash(f'Password updated successfully for {user.username}!', 'success')
+    return redirect(url_for('settings'))
+
+@app.route('/toggle_user/<int:user_id>')
+@login_required
+def toggle_user(user_id):
+    if not current_user.is_master_admin():
+        flash('Only master admin can activate/deactivate users.', 'error')
+        return redirect(url_for('settings'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Prevent master admin from deactivating themselves
+    if user.id == current_user.id:
+        flash('You cannot deactivate your own account.', 'error')
+        return redirect(url_for('settings'))
+    
+    user.is_active = not user.is_active
+    db.session.commit()
+    
+    status = "activated" if user.is_active else "deactivated"
+    flash(f'User "{user.username}" has been {status}.', 'success')
+    return redirect(url_for('settings'))
+
+@app.route('/delete_user/<int:user_id>')
+@login_required
+def delete_user(user_id):
+    if not current_user.is_master_admin():
+        flash('Only master admin can delete users.', 'error')
+        return redirect(url_for('settings'))
+    
+    user = User.query.get_or_404(user_id)
+    
+    # Prevent master admin from deleting themselves
+    if user.id == current_user.id:
+        flash('You cannot delete your own account.', 'error')
+        return redirect(url_for('settings'))
+    
+    username = user.username
+    db.session.delete(user)
+    db.session.commit()
+    
+    flash(f'User "{username}" has been deleted permanently.', 'success')
     return redirect(url_for('settings'))
 
 # ============================================================================
