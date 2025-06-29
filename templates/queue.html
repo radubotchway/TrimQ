@@ -1,98 +1,123 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-10">
-        <div class="card mb-4">
-            <div class="card-header bg-dark text-white">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h2 class="mb-0">{{ branch_info.name if branch_info else branch }} Branch Queue</h2>
-                    <div class="text-end">
-                        <small class="d-block">{{ now.strftime('%A, %B %d, %Y') }}</small>
-                        <small class="d-block">{{ now.strftime('%I:%M %p') }}</small>
-                    </div>
-                </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold">
+        <i class="bi bi-list-check"></i> Queue Management
+    </h2>
+    <a href="{{ url_for('add_customer') }}" class="btn btn-primary">
+        <i class="bi bi-person-plus"></i> Add Customer
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    <i class="bi bi-clock-history"></i> Waiting ({{ waiting|length }})
+                </h4>
+                <span class="badge bg-warning">{{ waiting|length }}</span>
             </div>
             <div class="card-body">
-                {% if branch_info and branch_info.address %}
-                    <p class="text-muted mb-4">
-                        <i class="bi bi-geo-alt"></i> {{ branch_info.address }}
-                        {% if branch_info.phone %}
-                            • <i class="bi bi-telephone"></i> {{ branch_info.phone }}
-                        {% endif %}
-                    </p>
+                {% if waiting %}
+                    {% for customer in waiting %}
+                        <div class="queue-item">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h5 class="fw-semibold mb-1">{{ customer.name }}</h5>
+                                    <span class="badge bg-primary me-2">{{ customer.service.name }}</span>
+                                    <span class="badge bg-secondary">{{ customer.phone }}</span>
+                                </div>
+                                <small class="text-muted">#{{ customer.id }}</small>
+                            </div>
+                            
+                            {% if customer.notes %}
+                                <p class="text-muted mb-2">
+                                    <i class="bi bi-chat-left-text"></i> {{ customer.notes }}
+                                </p>
+                            {% endif %}
+                            
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock"></i> Arrived: {{ customer.created_at.strftime('%H:%M') }}
+                                    • Wait: {{ get_wait_time(customer) }}
+                                </small>
+                            </div>
+                            
+                            <form method="POST" action="{{ url_for('assign_customer', customer_id=customer.id) }}">
+                                <div class="input-group">
+                                    <select name="barber_id" class="form-select" required>
+                                        <option value="">Choose barber...</option>
+                                        {% for barber in barbers %}
+                                            <option value="{{ barber.id }}">{{ barber.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="bi bi-arrow-right"></i> Assign
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-check-circle display-4 text-success mb-3"></i>
+                        <h5 class="text-muted">No customers waiting</h5>
+                        <p class="text-muted">All clear! Ready for new customers.</p>
+                    </div>
                 {% endif %}
-                
-                <div class="row">
-                    <div class="col-md-6">
-                        <h4 class="mb-3"><i class="bi bi-scissors"></i> Currently Serving</h4>
-                        {% if in_progress %}
-                            <div class="list-group mb-4">
-                                {% for customer in in_progress %}
-                                    <div class="list-group-item list-group-item-action queue-item in-progress">
-                                        <div class="d-flex w-100 justify-content-between">
-                                            <h5 class="mb-1">{{ customer.name }}</h5>
-                                            <small>#{{ customer.id }}</small>
-                                        </div>
-                                        <p class="mb-1">
-                                            <span class="badge bg-primary">{{ customer.service.name }}</span>
-                                            <span class="badge bg-success">{{ customer.barber.name }}</span>
-                                        </p>
-                                        <small class="text-muted">
-                                            Started at {{ customer.assigned_at.strftime('%H:%M') }}
-                                        </small>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle"></i> No customers currently being served.
-                            </div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <h4 class="mb-3"><i class="bi bi-clock"></i> Waiting Customers ({{ waiting|length }})</h4>
-                        {% if waiting %}
-                            <div class="list-group">
-                                {% for customer in waiting %}
-                                    <div class="list-group-item list-group-item-action queue-item">
-                                        <div class="d-flex w-100 justify-content-between">
-                                            <h5 class="mb-1">{{ customer.name }}</h5>
-                                            <small>#{{ customer.id }}</small>
-                                        </div>
-                                        <p class="mb-1">
-                                            <span class="badge bg-primary">{{ customer.service.name }}</span>
-                                        </p>
-                                        <small class="text-muted">
-                                            Arrived: {{ customer.created_at.strftime('%H:%M') }} • 
-                                            Est. Wait: <span class="fw-bold text-primary">{{ get_wait_time(customer) }}</span>
-                                        </small>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <div class="alert alert-success">
-                                <i class="bi bi-check-circle"></i> No customers waiting - all clear!
-                            </div>
-                        {% endif %}
-                    </div>
-                </div>
             </div>
         </div>
-        
-        <div class="text-center text-muted">
-            <p><i class="bi bi-arrow-clockwise"></i> This display automatically updates every 30 seconds.</p>
+    </div>
+    
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <h4 class="mb-0 text-white">
+                    <i class="bi bi-scissors"></i> In Progress ({{ in_progress|length }})
+                </h4>
+                <span class="badge bg-light text-dark">{{ in_progress|length }}</span>
+            </div>
+            <div class="card-body">
+                {% if in_progress %}
+                    {% for customer in in_progress %}
+                        <div class="queue-item in-progress">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h5 class="fw-semibold mb-1">{{ customer.name }}</h5>
+                                    <span class="badge bg-primary me-2">{{ customer.service.name }}</span>
+                                    <span class="badge bg-success">{{ customer.barber.name }}</span>
+                                </div>
+                                <small class="text-muted">#{{ customer.id }}</small>
+                            </div>
+                            
+                            {% if customer.notes %}
+                                <p class="text-muted mb-2">
+                                    <i class="bi bi-chat-left-text"></i> {{ customer.notes }}
+                                </p>
+                            {% endif %}
+                            
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-play-circle"></i> Started: {{ customer.assigned_at.strftime('%H:%M') }}
+                                </small>
+                                <a href="{{ url_for('complete_customer', customer_id=customer.id) }}" 
+                                   class="btn btn-primary btn-sm">
+                                    <i class="bi bi-check-circle"></i> Complete
+                                </a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-scissors display-4 text-muted mb-3"></i>
+                        <h5 class="text-muted">No services in progress</h5>
+                        <p class="text-muted">Ready to start serving customers.</p>
+                    </div>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // Auto-refresh the queue every 30 seconds
-    setTimeout(function() {
-        window.location.reload();
-    }, 30000);
-</script>
 {% endblock %}

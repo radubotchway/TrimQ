@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    body {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        color: white;
+    }
+    
+    .display-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+    
+    .queue-item {
+        background: rgba(255, 255, 255, 0.1);
+        border-left-color: #10b981;
+        color: white;
+    }
+    
+    .serving-item {
+        background: rgba(16, 185, 129, 0.2);
+        border-left-color: #10b981;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="text-center mb-5">
+    <h1 class="display-4 fw-bold mb-3">{{ branch_info.name if branch_info else 'Main' }} Branch</h1>
+    <p class="lead">Current Queue Status • {{ now.strftime('%A, %B %d') }} • {{ now.strftime('%I:%M %p') }}</p>
+</div>
+
+<div class="row">
+    <div class="col-lg-6 mb-4">
+        <div class="display-card card">
+            <div class="card-header" style="background: rgba(16, 185, 129, 0.3);">
+                <h3 class="mb-0 text-center">
+                    <i class="bi bi-scissors"></i> Now Serving
+                </h3>
+            </div>
+            <div class="card-body">
+                {% if in_progress %}
+                    {% for customer in in_progress %}
+                        <div class="serving-item queue-item text-center py-4 mb-3">
+                            <h2 class="fw-bold mb-2">{{ customer.name }}</h2>
+                            <h4 class="text-success mb-2">{{ customer.barber.name }}</h4>
+                            <span class="badge bg-primary fs-6">{{ customer.service.name }}</span>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-pause-circle display-1 text-muted mb-3"></i>
+                        <h4 class="text-muted">No one currently being served</h4>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6 mb-4">
+        <div class="display-card card">
+            <div class="card-header" style="background: rgba(245, 158, 11, 0.3);">
+                <h3 class="mb-0 text-center">
+                    <i class="bi bi-clock"></i> Up Next ({{ waiting|length }})
+                </h3>
+            </div>
+            <div class="card-body">
+                {% if waiting %}
+                    {% for customer in waiting[:5] %}
+                        <div class="queue-item d-flex justify-content-between align-items-center py-3">
+                            <div>
+                                <h5 class="mb-1">{{ customer.name }}</h5>
+                                <span class="badge bg-primary">{{ customer.service.name }}</span>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold text-warning">{{ get_wait_time(customer) }}</div>
+                                <small class="text-muted">#{{ customer.id }}</small>
+                            </div>
+                        </div>
+                    {% endfor %}
+                    
+                    {% if waiting|length > 5 %}
+                        <div class="text-center mt-3">
+                            <span class="badge bg-secondary">+{{ waiting|length - 5 }} more waiting</span>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-check-circle display-1 text-success mb-3"></i>
+                        <h4 class="text-success">No one waiting!</h4>
+                        <p class="text-muted">Perfect time to walk in</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="text-center mt-4">
+    <p class="text-muted">
+        <i class="bi bi-arrow-clockwise"></i> Updates automatically every 30 seconds
+    </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-refresh every 30 seconds
+    setTimeout(() => window.location.reload(), 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold">
+        <i class="bi bi-gear"></i> Settings
+    </h2>
+</div>
+
+<div class="row">
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="bi bi-list-ul"></i> Services
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_service') }}" class="mb-4">
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <input type="text" name="name" class="form-control" placeholder="Service name" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="number" name="duration" class="form-control" placeholder="Minutes" required>
+                        </div>
+                        <div class="col-md-6">
+                            <input type="number" name="price" step="0.01" class="form-control" placeholder="Price" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus"></i> Add Service
+                    </button>
+                </form>
+                
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th>Duration</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for service in services %}
+                                <tr>
+                                    <td>{{ service.name }}</td>
+                                    <td>{{ service.duration }} min</td>
+                                    <td>${{ service.price }}</td>
+                                    <td>
+                                        <a href="{{ url_for('toggle_service', service_id=service.id) }}" 
+                                           class="btn btn-sm {{ 'btn-outline-success' if service.is_active else 'btn-outline-secondary' }}">
+                                            {{ 'Active' if service.is_active else 'Inactive' }}
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <h4 class="mb-0 text-white">
+                    <i class="bi bi-people"></i> Barbers
+                </h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_barber') }}" class="mb-4">
+                    <div class="input-group">
+                        <input type="text" name="name" class="form-control" placeholder="Barber name" required>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-plus"></i> Add Barber
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for barber in barbers %}
+                                <tr>
+                                    <td>{{ barber.name }}</td>
+                                    <td>
+                                        <a href="{{ url_for('toggle_barber', barber_id=barber.id) }}" 
+                                           class="btn btn-sm {{ 'btn-outline-success' if barber.is_active else 'btn-outline-secondary' }}">
+                                            {{ 'Active' if barber.is_active else 'Inactive' }}
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

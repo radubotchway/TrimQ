@@ -1,4 +1,4 @@
-# File: app.py - Complete TrimQ Application
+# File: app.py - Beautiful TrimQ Application
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -73,47 +73,35 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 # ============================================================================
-# FORMS
+# FORMS - Simplified for better UX
 # ============================================================================
 
 class LoginForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired()])
-    password = PasswordField('Password', validators=[DataRequired()])
-    submit = SubmitField('Login')
+    username = StringField('Username', validators=[DataRequired()], render_kw={"placeholder": "Enter your username"})
+    password = PasswordField('Password', validators=[DataRequired()], render_kw={"placeholder": "Enter your password"})
+    submit = SubmitField('Sign In')
 
 class CustomerForm(FlaskForm):
-    name = StringField('Full Name', validators=[DataRequired(), Length(max=100)])
-    phone = StringField('Phone Number', validators=[DataRequired(), Length(max=20)])
-    service_id = SelectField('Service', coerce=int, validators=[DataRequired()])
-    branch = SelectField('Branch', validators=[DataRequired()])
-    notes = TextAreaField('Special Instructions')
+    name = StringField('Customer Name', validators=[DataRequired(), Length(max=100)], render_kw={"placeholder": "Full name"})
+    phone = StringField('Phone Number', validators=[DataRequired(), Length(max=20)], render_kw={"placeholder": "(555) 123-4567"})
+    service_id = SelectField('Select Service', coerce=int, validators=[DataRequired()])
+    notes = TextAreaField('Special Notes (Optional)', render_kw={"placeholder": "Any special requests or instructions...", "rows": 3})
     submit = SubmitField('Add to Queue')
 
     def __init__(self, *args, **kwargs):
         super(CustomerForm, self).__init__(*args, **kwargs)
-        self.service_id.choices = [(s.id, f"{s.name} ({s.duration} min)") for s in Service.query.filter_by(is_active=True).order_by('name').all()]
-        self.branch.choices = [(b.name, b.name) for b in Branch.query.filter_by(is_active=True).order_by('name').all()]
+        services = Service.query.filter_by(is_active=True).order_by('name').all()
+        self.service_id.choices = [(s.id, f"{s.name} ({s.duration} min • ${s.price:.0f})") for s in services]
 
-class ServiceForm(FlaskForm):
+class QuickServiceForm(FlaskForm):
     name = StringField('Service Name', validators=[DataRequired(), Length(max=100)])
-    duration = IntegerField('Duration (minutes)', validators=[Optional()])
-    price = FloatField('Price', validators=[Optional()])
+    duration = IntegerField('Duration (minutes)', validators=[DataRequired()])
+    price = FloatField('Price ($)', validators=[DataRequired()])
     submit = SubmitField('Add Service')
 
-class BarberForm(FlaskForm):
+class QuickBarberForm(FlaskForm):
     name = StringField('Barber Name', validators=[DataRequired(), Length(max=100)])
-    branch = SelectField('Branch', validators=[DataRequired()])
     submit = SubmitField('Add Barber')
-
-    def __init__(self, *args, **kwargs):
-        super(BarberForm, self).__init__(*args, **kwargs)
-        self.branch.choices = [(b.name, b.name) for b in Branch.query.filter_by(is_active=True).order_by('name').all()]
-
-class BranchForm(FlaskForm):
-    name = StringField('Branch Name', validators=[DataRequired(), Length(max=100)])
-    address = TextAreaField('Address')
-    phone = StringField('Phone Number', validators=[Optional(), Length(max=20)])
-    submit = SubmitField('Add Branch')
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -138,45 +126,44 @@ def get_wait_time(customer):
             total_wait += service.duration
     
     if total_wait == 0:
-        return "Now"
-    
-    wait_time = datetime.utcnow() + timedelta(minutes=total_wait)
-    return wait_time.strftime('%H:%M')
+        return "Up Next!"
+    elif total_wait <= 5:
+        return "Very Soon"
+    elif total_wait <= 15:
+        return f"~{total_wait} min"
+    else:
+        return f"~{total_wait} min"
 
 @app.context_processor
-def inject_now():
-    return {'now': datetime.now()}
+def inject_helpers():
+    return {
+        'now': datetime.now(),
+        'get_wait_time': get_wait_time
+    }
 
 # ============================================================================
-# ROUTES
+# ROUTES - Simplified and streamlined
 # ============================================================================
 
 @app.route('/')
 def index():
-    waiting_count = 0
-    in_progress_count = 0
-    active_barbers_count = 0
+    if not current_user.is_authenticated:
+        return render_template('welcome.html')
     
-    if current_user.is_authenticated:
-        waiting_count = Customer.query.filter_by(
-            branch=current_user.branch, 
-            status='waiting'
-        ).count()
-        
-        in_progress_count = Customer.query.filter_by(
-            branch=current_user.branch, 
-            status='assigned'
-        ).count()
-        
-        active_barbers_count = Barber.query.filter_by(
-            branch=current_user.branch,
-            is_active=True
-        ).count()
+    # Dashboard data for authenticated users
+    branch = current_user.branch
+    waiting_count = Customer.query.filter_by(branch=branch, status='waiting').count()
+    in_progress_count = Customer.query.filter_by(branch=branch, status='assigned').count()
+    completed_today = Customer.query.filter(
+        Customer.branch == branch,
+        Customer.status == 'completed',
+        Customer.completed_at >= datetime.now().replace(hour=0, minute=0, second=0)
+    ).count()
     
-    return render_template('index.html',
+    return render_template('dashboard.html',
                          waiting_count=waiting_count,
                          in_progress_count=in_progress_count,
-                         active_barbers_count=active_barbers_count)
+                         completed_today=completed_today)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -188,10 +175,9 @@ def login():
         user = User.query.filter_by(username=form.username.data).first()
         if user and check_password_hash(user.password, form.password.data):
             login_user(user)
-            next_page = request.args.get('next')
-            flash('Login successful!', 'success')
-            return redirect(next_page or url_for('manage_queue', branch=user.branch))
-        flash('Invalid username or password', 'danger')
+            flash(f'Welcome back, {user.username}!', 'success')
+            return redirect(url_for('index'))
+        flash('Invalid credentials. Please try again.', 'error')
     return render_template('login.html', form=form)
 
 @app.route('/logout')
@@ -201,7 +187,7 @@ def logout():
     flash('You have been logged out.', 'info')
     return redirect(url_for('index'))
 
-@app.route('/add_customer', methods=['GET', 'POST'])
+@app.route('/add', methods=['GET', 'POST'])
 @login_required
 def add_customer():
     form = CustomerForm()
@@ -210,22 +196,19 @@ def add_customer():
             name=form.name.data,
             phone=form.phone.data,
             service_id=form.service_id.data,
-            branch=form.branch.data,
+            branch=current_user.branch,
             notes=form.notes.data
         )
         db.session.add(customer)
         db.session.commit()
-        flash(f'Customer {customer.name} added to queue!', 'success')
-        return redirect(url_for('manage_queue', branch=form.branch.data))
+        flash(f'{customer.name} has been added to the queue!', 'success')
+        return redirect(url_for('queue_manage'))
     return render_template('add_customer.html', form=form)
 
-@app.route('/manage/<branch>')
+@app.route('/queue')
 @login_required
-def manage_queue(branch):
-    if current_user.branch != branch and not current_user.is_admin:
-        flash('You can only manage your own branch queue', 'danger')
-        return redirect(url_for('manage_queue', branch=current_user.branch))
-    
+def queue_manage():
+    branch = current_user.branch
     waiting = Customer.query.filter_by(
         branch=branch, 
         status='waiting'
@@ -241,46 +224,41 @@ def manage_queue(branch):
         is_active=True
     ).order_by(Barber.name).all()
     
-    return render_template('manage.html', 
+    return render_template('queue.html', 
                          waiting=waiting,
                          in_progress=in_progress,
-                         barbers=barbers,
-                         branch=branch,
-                         get_wait_time=get_wait_time)
+                         barbers=barbers)
 
 @app.route('/assign/<int:customer_id>', methods=['POST'])
 @login_required
 def assign_customer(customer_id):
     customer = Customer.query.get_or_404(customer_id)
-    if current_user.branch != customer.branch and not current_user.is_admin:
-        flash('You can only manage your own branch queue', 'danger')
-        return redirect(url_for('manage_queue', branch=current_user.branch))
-    
     barber_id = request.form.get('barber_id')
+    
     if barber_id:
         customer.barber_id = barber_id
         customer.status = 'assigned'
         customer.assigned_at = datetime.utcnow()
         db.session.commit()
-        flash(f'Customer {customer.name} assigned to barber!', 'success')
-    return redirect(url_for('manage_queue', branch=customer.branch))
+        barber = Barber.query.get(barber_id)
+        flash(f'{customer.name} is now with {barber.name}', 'success')
+    
+    return redirect(url_for('queue_manage'))
 
 @app.route('/complete/<int:customer_id>')
 @login_required
 def complete_customer(customer_id):
     customer = Customer.query.get_or_404(customer_id)
-    if current_user.branch != customer.branch and not current_user.is_admin:
-        flash('You can only manage your own branch queue', 'danger')
-        return redirect(url_for('manage_queue', branch=current_user.branch))
-    
     customer.status = 'completed'
     customer.completed_at = datetime.utcnow()
     db.session.commit()
-    flash(f'Service for {customer.name} marked as completed!', 'success')
-    return redirect(url_for('manage_queue', branch=customer.branch))
+    flash(f'{customer.name} is all done! ✂️', 'success')
+    return redirect(url_for('queue_manage'))
 
-@app.route('/queue/<branch>')
-def public_queue(branch):
+@app.route('/display')
+@login_required
+def public_display():
+    branch = current_user.branch
     waiting = Customer.query.filter_by(
         branch=branch, 
         status='waiting'
@@ -292,131 +270,104 @@ def public_queue(branch):
     ).order_by(Customer.assigned_at).all()
     
     branch_info = Branch.query.filter_by(name=branch).first()
-    
-    return render_template('queue.html', 
+    return render_template('display.html', 
                          waiting=waiting,
                          in_progress=in_progress,
-                         branch=branch,
-                         branch_info=branch_info,
-                         get_wait_time=get_wait_time)
+                         branch_info=branch_info)
 
-@app.route('/services', methods=['GET', 'POST'])
+@app.route('/settings')
 @login_required
-def manage_services():
+def settings():
     if not current_user.is_admin:
-        flash('Admin access required', 'danger')
+        flash('Admin access required', 'error')
         return redirect(url_for('index'))
-    
-    form = ServiceForm()
-    if form.validate_on_submit():
-        service = Service(
-            name=form.name.data,
-            duration=form.duration.data,
-            price=form.price.data
-        )
-        db.session.add(service)
-        db.session.commit()
-        flash(f'Service {service.name} added successfully!', 'success')
-        return redirect(url_for('manage_services'))
     
     services = Service.query.order_by(Service.name).all()
-    return render_template('services.html', form=form, services=services)
+    barbers = Barber.query.filter_by(branch=current_user.branch).order_by(Barber.name).all()
+    
+    return render_template('settings.html', services=services, barbers=barbers)
 
-@app.route('/barbers', methods=['GET', 'POST'])
+@app.route('/add_service', methods=['POST'])
 @login_required
-def manage_barbers():
+def add_service():
     if not current_user.is_admin:
-        flash('Admin access required', 'danger')
+        flash('Admin access required', 'error')
         return redirect(url_for('index'))
     
-    form = BarberForm()
-    if form.validate_on_submit():
-        barber = Barber(
-            name=form.name.data,
-            branch=form.branch.data
-        )
+    name = request.form.get('name')
+    duration = request.form.get('duration')
+    price = request.form.get('price')
+    
+    if name and duration and price:
+        service = Service(name=name, duration=int(duration), price=float(price))
+        db.session.add(service)
+        db.session.commit()
+        flash(f'Service "{name}" added successfully!', 'success')
+    
+    return redirect(url_for('settings'))
+
+@app.route('/add_barber', methods=['POST'])
+@login_required
+def add_barber():
+    if not current_user.is_admin:
+        flash('Admin access required', 'error')
+        return redirect(url_for('index'))
+    
+    name = request.form.get('name')
+    if name:
+        barber = Barber(name=name, branch=current_user.branch)
         db.session.add(barber)
         db.session.commit()
-        flash(f'Barber {barber.name} added successfully!', 'success')
-        return redirect(url_for('manage_barbers'))
+        flash(f'Barber "{name}" added successfully!', 'success')
     
-    barbers = Barber.query.order_by(Barber.branch, Barber.name).all()
-    return render_template('barbers.html', form=form, barbers=barbers)
+    return redirect(url_for('settings'))
 
-@app.route('/branches', methods=['GET', 'POST'])
-@login_required
-def manage_branches():
-    if not current_user.is_admin:
-        flash('Admin access required', 'danger')
-        return redirect(url_for('index'))
-    
-    form = BranchForm()
-    if form.validate_on_submit():
-        branch = Branch(
-            name=form.name.data,
-            address=form.address.data,
-            phone=form.phone.data
-        )
-        db.session.add(branch)
-        db.session.commit()
-        flash(f'Branch {branch.name} added successfully!', 'success')
-        return redirect(url_for('manage_branches'))
-    
-    branches = Branch.query.order_by(Branch.name).all()
-    return render_template('branches.html', form=form, branches=branches)
-
-@app.route('/toggle_service/<int:service_id>', methods=['POST'])
+@app.route('/toggle_service/<int:service_id>')
 @login_required
 def toggle_service(service_id):
     if not current_user.is_admin:
-        flash('Admin access required', 'danger')
         return redirect(url_for('index'))
     
     service = Service.query.get_or_404(service_id)
     service.is_active = not service.is_active
     db.session.commit()
-    flash(f'Service {service.name} {"activated" if service.is_active else "deactivated"}', 'success')
-    return redirect(url_for('manage_services'))
+    return redirect(url_for('settings'))
 
-@app.route('/toggle_barber/<int:barber_id>', methods=['POST'])
+@app.route('/toggle_barber/<int:barber_id>')
 @login_required
 def toggle_barber(barber_id):
     if not current_user.is_admin:
-        flash('Admin access required', 'danger')
         return redirect(url_for('index'))
     
     barber = Barber.query.get_or_404(barber_id)
     barber.is_active = not barber.is_active
     db.session.commit()
-    flash(f'Barber {barber.name} {"activated" if barber.is_active else "deactivated"}', 'success')
-    return redirect(url_for('manage_barbers'))
+    return redirect(url_for('settings'))
 
 # ============================================================================
 # INITIALIZATION
 # ============================================================================
 
 def create_sample_data():
-    """Create sample data for testing"""
+    """Create beautiful sample data"""
     
-    # Create branches
-    branches_data = [
-        {'name': 'Main', 'address': '123 Main Street', 'phone': '555-0100'},
-        {'name': 'Downtown', 'address': '456 Downtown Ave', 'phone': '555-0200'},
-        {'name': 'Uptown', 'address': '789 Uptown Blvd', 'phone': '555-0300'}
-    ]
+    # Create main branch
+    if not Branch.query.filter_by(name='Main').first():
+        branch = Branch(
+            name='Main',
+            address='123 Style Street, Downtown',
+            phone='(555) 123-TRIM'
+        )
+        db.session.add(branch)
     
-    for branch_data in branches_data:
-        if not Branch.query.filter_by(name=branch_data['name']).first():
-            branch = Branch(**branch_data)
-            db.session.add(branch)
-    
-    # Create services
+    # Create premium services
     services_data = [
-        {'name': 'Haircut', 'duration': 30, 'price': 25.00},
-        {'name': 'Beard Trim', 'duration': 15, 'price': 15.00},
-        {'name': 'Hair Wash', 'duration': 10, 'price': 10.00},
-        {'name': 'Full Service', 'duration': 45, 'price': 35.00},
-        {'name': 'Shave', 'duration': 20, 'price': 20.00}
+        {'name': 'Classic Cut', 'duration': 30, 'price': 35},
+        {'name': 'Beard Styling', 'duration': 20, 'price': 25},
+        {'name': 'Hot Towel Shave', 'duration': 25, 'price': 30},
+        {'name': 'Full Service', 'duration': 60, 'price': 55},
+        {'name': 'Quick Trim', 'duration': 15, 'price': 20},
+        {'name': 'Hair Wash & Style', 'duration': 25, 'price': 28}
     ]
     
     for service_data in services_data:
@@ -424,13 +375,11 @@ def create_sample_data():
             service = Service(**service_data)
             db.session.add(service)
     
-    # Create barbers
+    # Create skilled barbers
     barbers_data = [
-        {'name': 'John Smith', 'branch': 'Main'},
-        {'name': 'Mike Johnson', 'branch': 'Main'},
-        {'name': 'Sarah Wilson', 'branch': 'Downtown'},
-        {'name': 'David Brown', 'branch': 'Downtown'},
-        {'name': 'Lisa Davis', 'branch': 'Uptown'}
+        {'name': 'Alex Rodriguez', 'branch': 'Main'},
+        {'name': 'Jordan Smith', 'branch': 'Main'},
+        {'name': 'Casey Johnson', 'branch': 'Main'}
     ]
     
     for barber_data in barbers_data:
@@ -438,7 +387,7 @@ def create_sample_data():
             barber = Barber(**barber_data)
             db.session.add(barber)
     
-    # Create admin user
+    # Create users
     if not User.query.filter_by(username='admin').first():
         admin = User(
             username='admin',
@@ -448,22 +397,14 @@ def create_sample_data():
         )
         db.session.add(admin)
     
-    # Create branch managers
-    managers_data = [
-        {'username': 'main_manager', 'password': 'password123', 'branch': 'Main'},
-        {'username': 'downtown_manager', 'password': 'password123', 'branch': 'Downtown'},
-        {'username': 'uptown_manager', 'password': 'password123', 'branch': 'Uptown'}
-    ]
-    
-    for manager_data in managers_data:
-        if not User.query.filter_by(username=manager_data['username']).first():
-            user = User(
-                username=manager_data['username'],
-                password=generate_password_hash(manager_data['password']),
-                branch=manager_data['branch'],
-                is_admin=False
-            )
-            db.session.add(user)
+    if not User.query.filter_by(username='staff').first():
+        staff = User(
+            username='staff',
+            password=generate_password_hash('staff123'),
+            branch='Main',
+            is_admin=False
+        )
+        db.session.add(staff)
     
     db.session.commit()
 
@@ -471,11 +412,8 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         create_sample_data()
-        print("Database initialized with sample data!")
-        print("\nLogin credentials:")
-        print("Admin: admin / admin123")
-        print("Main Manager: main_manager / password123")
-        print("Downtown Manager: downtown_manager / password123")
-        print("Uptown Manager: uptown_manager / password123")
+        print("🎯 TrimQ is ready!")
+        print("📋 Login with: admin/admin123 or staff/staff123")
+        print("🌐 Open: http://127.0.0.1:5000")
     
     app.run(debug=True)
