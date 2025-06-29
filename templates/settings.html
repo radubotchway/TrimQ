@@ -36,8 +36,12 @@
                             <small class="text-muted">Unique identifier</small>
                         </div>
                         <div class="col-md-2">
+                            <input type="email" name="email" class="form-control" placeholder="Email Address">
+                            <small class="text-muted">For password reset</small>
+                        </div>
+                        <div class="col-md-1">
                             <input type="password" name="password" class="form-control" placeholder="Password" required minlength="6">
-                            <small class="text-muted">Min 6 characters</small>
+                            <small class="text-muted">Min 6 chars</small>
                         </div>
                         <div class="col-md-2">
                             <select name="branch" class="form-select" required>
@@ -69,6 +73,7 @@
                         <thead>
                             <tr>
                                 <th>Username</th>
+                                <th>Email</th>
                                 <th>Role</th>
                                 <th>Branch</th>
                                 <th>Status</th>
@@ -87,6 +92,21 @@
                                             {% endif %}
                                         </span>
                                         <input type="text" class="form-control d-none user-username-edit" value="{{ user.username }}">
+                                    </td>
+                                    <td>
+                                        <span class="user-email">
+                                            {% if user.email %}
+                                                <i class="bi bi-envelope-check text-success"></i>
+                                                {{ user.email }}
+                                            {% else %}
+                                                <span class="text-muted">
+                                                    <i class="bi bi-envelope-x"></i> No email
+                                                </span>
+                                            {% endif %}
+                                        </span>
+                                        {% if current_user.is_master_admin() or current_user.id == user.id %}
+                                            <input type="email" class="form-control d-none user-email-edit" value="{{ user.email or '' }}" placeholder="user@example.com">
+                                        {% endif %}
                                     </td>
                                     <td>
                                         <span class="user-role">
@@ -179,7 +199,7 @@
                                 
                                 <!-- Password Change Section (Hidden by default) -->
                                 <tr class="d-none password-change-row" id="passwordRow{{ user.id }}">
-                                    <td colspan="6">
+                                    <td colspan="7">
                                         <div class="card border-warning">
                                             <div class="card-header bg-warning bg-opacity-10">
                                                 <h6 class="mb-0">
@@ -488,6 +508,151 @@
 
 {% block scripts %}
 <script>
+// Initialize Bootstrap tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+// User management inline editing
+document.querySelectorAll('.edit-user-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const userId = this.dataset.userId;
+        const row = document.getElementById(`user-${userId}`);
+        
+        console.log('Edit button clicked for user:', userId); // Debug log
+        
+        // Show edit elements, hide display elements
+        const usernameSpan = row.querySelector('.user-username');
+        const usernameEdit = row.querySelector('.user-username-edit');
+        const emailSpan = row.querySelector('.user-email');
+        const emailEdit = row.querySelector('.user-email-edit');
+        
+        if (usernameSpan && usernameEdit) {
+            usernameSpan.classList.add('d-none');
+            usernameEdit.classList.remove('d-none');
+        }
+        
+        if (emailSpan && emailEdit) {
+            emailSpan.classList.add('d-none');
+            emailEdit.classList.remove('d-none');
+        }
+        
+        const roleSpan = row.querySelector('.user-role');
+        const roleEdit = row.querySelector('.user-role-edit');
+        const branchSpan = row.querySelector('.user-branch');
+        const branchEdit = row.querySelector('.user-branch-edit');
+        
+        if (roleSpan && roleEdit) {
+            roleSpan.classList.add('d-none');
+            roleEdit.classList.remove('d-none');
+        }
+        
+        if (branchSpan && branchEdit) {
+            branchSpan.classList.add('d-none');
+            branchEdit.classList.remove('d-none');
+        }
+        
+        // Switch buttons
+        this.classList.add('d-none');
+        row.querySelector('.save-user-btn').classList.remove('d-none');
+        row.querySelector('.cancel-user-btn').classList.remove('d-none');
+    });
+});
+
+document.querySelectorAll('.cancel-user-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const userId = this.dataset.userId;
+        const row = document.getElementById(`user-${userId}`);
+        
+        // Show display elements, hide edit elements
+        const usernameSpan = row.querySelector('.user-username');
+        const usernameEdit = row.querySelector('.user-username-edit');
+        const emailSpan = row.querySelector('.user-email');
+        const emailEdit = row.querySelector('.user-email-edit');
+        
+        if (usernameSpan && usernameEdit) {
+            usernameSpan.classList.remove('d-none');
+            usernameEdit.classList.add('d-none');
+        }
+        
+        if (emailSpan && emailEdit) {
+            emailSpan.classList.remove('d-none');
+            emailEdit.classList.add('d-none');
+        }
+        
+        const roleSpan = row.querySelector('.user-role');
+        const roleEdit = row.querySelector('.user-role-edit');
+        const branchSpan = row.querySelector('.user-branch');
+        const branchEdit = row.querySelector('.user-branch-edit');
+        
+        if (roleSpan && roleEdit) {
+            roleSpan.classList.remove('d-none');
+            roleEdit.classList.add('d-none');
+        }
+        
+        if (branchSpan && branchEdit) {
+            branchSpan.classList.remove('d-none');
+            branchEdit.classList.add('d-none');
+        }
+        
+        // Switch buttons
+        this.classList.add('d-none');
+        row.querySelector('.save-user-btn').classList.add('d-none');
+        row.querySelector('.edit-user-btn').classList.remove('d-none');
+    });
+});
+
+document.querySelectorAll('.save-user-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const userId = this.dataset.userId;
+        const row = document.getElementById(`user-${userId}`);
+        
+        const username = row.querySelector('.user-username-edit').value;
+        const email = row.querySelector('.user-email-edit') ? row.querySelector('.user-email-edit').value : '';
+        const roleEdit = row.querySelector('.user-role-edit');
+        const branchEdit = row.querySelector('.user-branch-edit');
+        
+        // Create form and submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/edit_user/${userId}`;
+        
+        const usernameInput = document.createElement('input');
+        usernameInput.type = 'hidden';
+        usernameInput.name = 'username';
+        usernameInput.value = username;
+        form.appendChild(usernameInput);
+        
+        const emailInput = document.createElement('input');
+        emailInput.type = 'hidden';
+        emailInput.name = 'email';
+        emailInput.value = email;
+        form.appendChild(emailInput);
+        
+        if (roleEdit) {
+            const roleInput = document.createElement('input');
+            roleInput.type = 'hidden';
+            roleInput.name = 'role';
+            roleInput.value = roleEdit.value;
+            form.appendChild(roleInput);
+        }
+        
+        if (branchEdit) {
+            const branchInput = document.createElement('input');
+            branchInput.type = 'hidden';
+            branchInput.name = 'branch';
+            branchInput.value = branchEdit.value;
+            form.appendChild(branchInput);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    });
+});
+
 // Password change functionality
 document.querySelectorAll('.change-password-btn').forEach(btn => {
     btn.addEventListener('click', function() {
@@ -542,130 +707,6 @@ document.querySelectorAll('input[name="confirm_password"]').forEach(input => {
         } else {
             this.setCustomValidity('');
             this.classList.remove('is-invalid');
-        }
-    });
-});
-
-// Initialize Bootstrap tooltips
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize tooltips for all elements with title attribute
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
-});
-
-// User management inline editing
-document.querySelectorAll('.edit-user-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const userId = this.dataset.userId;
-        const row = document.getElementById(`user-${userId}`);
-        
-        // Show edit elements, hide display elements
-        row.querySelector('.user-username').classList.add('d-none');
-        row.querySelector('.user-username-edit').classList.remove('d-none');
-        
-        const roleEdit = row.querySelector('.user-role-edit');
-        const branchEdit = row.querySelector('.user-branch-edit');
-        
-        if (roleEdit) {
-            row.querySelector('.user-role').classList.add('d-none');
-            roleEdit.classList.remove('d-none');
-        }
-        
-        if (branchEdit) {
-            row.querySelector('.user-branch').classList.add('d-none');
-            branchEdit.classList.remove('d-none');
-        }
-        
-        // Switch buttons
-        this.classList.add('d-none');
-        row.querySelector('.save-user-btn').classList.remove('d-none');
-        row.querySelector('.cancel-user-btn').classList.remove('d-none');
-    });
-});
-
-document.querySelectorAll('.cancel-user-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const userId = this.dataset.userId;
-        const row = document.getElementById(`user-${userId}`);
-        
-        // Show display elements, hide edit elements
-        row.querySelector('.user-username').classList.remove('d-none');
-        row.querySelector('.user-username-edit').classList.add('d-none');
-        
-        const roleEdit = row.querySelector('.user-role-edit');
-        const branchEdit = row.querySelector('.user-branch-edit');
-        
-        if (roleEdit) {
-            row.querySelector('.user-role').classList.remove('d-none');
-            roleEdit.classList.add('d-none');
-        }
-        
-        if (branchEdit) {
-            row.querySelector('.user-branch').classList.remove('d-none');
-            branchEdit.classList.add('d-none');
-        }
-        
-        // Switch buttons
-        this.classList.add('d-none');
-        row.querySelector('.save-user-btn').classList.add('d-none');
-        row.querySelector('.edit-user-btn').classList.remove('d-none');
-    });
-});
-
-document.querySelectorAll('.save-user-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const userId = this.dataset.userId;
-        const row = document.getElementById(`user-${userId}`);
-        
-        const username = row.querySelector('.user-username-edit').value;
-        const roleEdit = row.querySelector('.user-role-edit');
-        const branchEdit = row.querySelector('.user-branch-edit');
-        
-        // Create form and submit
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/edit_user/${userId}`;
-        
-        const usernameInput = document.createElement('input');
-        usernameInput.type = 'hidden';
-        usernameInput.name = 'username';
-        usernameInput.value = username;
-        form.appendChild(usernameInput);
-        
-        if (roleEdit) {
-            const roleInput = document.createElement('input');
-            roleInput.type = 'hidden';
-            roleInput.name = 'role';
-            roleInput.value = roleEdit.value;
-            form.appendChild(roleInput);
-        }
-        
-        if (branchEdit) {
-            const branchInput = document.createElement('input');
-            branchInput.type = 'hidden';
-            branchInput.name = 'branch';
-            branchInput.value = branchEdit.value;
-            form.appendChild(branchInput);
-        }
-        
-        document.body.appendChild(form);
-        form.submit();
-    });
-});
-
-// Password confirmation validation
-document.querySelectorAll('[id^="confirm_password"]').forEach(input => {
-    input.addEventListener('input', function() {
-        const userId = this.id.replace('confirm_password', '');
-        const newPassword = document.getElementById(`new_password${userId}`).value;
-        const confirmPassword = this.value;
-        
-        if (newPassword !== confirmPassword) {
-            this.setCustomValidity('Passwords do not match');
-        } else {
-            this.setCustomValidity('');
         }
     });
 });
