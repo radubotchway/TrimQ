@@ -3,9 +3,9 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="fw-bold">
-        <i class="bi bi-list-check"></i> Queue Management
+        <i class="bi bi-list-check"></i> {{ branch_info.name }} Queue
     </h2>
-    <a href="{{ url_for('add_customer') }}" class="btn btn-primary">
+    <a href="{{ url_for('add_customer', branch_code=branch_code) }}" class="btn btn-ghana">
         <i class="bi bi-person-plus"></i> Add Customer
     </a>
 </div>
@@ -28,6 +28,9 @@
                                     <h5 class="fw-semibold mb-1">{{ customer.name }}</h5>
                                     <span class="badge bg-primary me-2">{{ customer.service.name }}</span>
                                     <span class="badge bg-secondary">{{ customer.phone }}</span>
+                                    <div class="currency mt-1">
+                                        <small>GH₵{{ customer.service.price }} • {{ customer.service.duration }} min</small>
+                                    </div>
                                 </div>
                                 <small class="text-muted">#{{ customer.id }}</small>
                             </div>
@@ -73,7 +76,7 @@
     
     <div class="col-lg-6 mb-4">
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+            <div class="card-header branch-header d-flex justify-content-between align-items-center">
                 <h4 class="mb-0 text-white">
                     <i class="bi bi-scissors"></i> In Progress ({{ in_progress|length }})
                 </h4>
@@ -82,12 +85,15 @@
             <div class="card-body">
                 {% if in_progress %}
                     {% for customer in in_progress %}
-                        <div class="queue-item in-progress">
+                        <div class="queue-item" style="border-left-color: var(--accent-color);">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
                                     <h5 class="fw-semibold mb-1">{{ customer.name }}</h5>
                                     <span class="badge bg-primary me-2">{{ customer.service.name }}</span>
                                     <span class="badge bg-success">{{ customer.barber.name }}</span>
+                                    <div class="currency mt-1">
+                                        <small>GH₵{{ customer.service.price }} • {{ customer.service.duration }} min</small>
+                                    </div>
                                 </div>
                                 <small class="text-muted">#{{ customer.id }}</small>
                             </div>

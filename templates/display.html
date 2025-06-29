@@ -29,8 +29,9 @@
 
 {% block content %}
 <div class="text-center mb-5">
-    <h1 class="display-4 fw-bold mb-3">{{ branch_info.name if branch_info else 'Main' }} Branch</h1>
-    <p class="lead">Current Queue Status • {{ now.strftime('%A, %B %d') }} • {{ now.strftime('%I:%M %p') }}</p>
+    <div class="ghana-flag"></div>
+    <h1 class="display-4 fw-bold mb-3">{{ branch_info.name }}</h1>
+    <p class="lead">{{ branch_info.address }} • {{ now.strftime('%A, %B %d') }} • {{ now.strftime('%I:%M %p') }}</p>
 </div>
 
 <div class="row">
@@ -48,6 +49,9 @@
                             <h2 class="fw-bold mb-2">{{ customer.name }}</h2>
                             <h4 class="text-success mb-2">{{ customer.barber.name }}</h4>
                             <span class="badge bg-primary fs-6">{{ customer.service.name }}</span>
+                            <div class="currency mt-2">
+                                <small>GH₵{{ customer.service.price }}</small>
+                            </div>
                         </div>
                     {% endfor %}
                 {% else %}
@@ -74,6 +78,9 @@
                             <div>
                                 <h5 class="mb-1">{{ customer.name }}</h5>
                                 <span class="badge bg-primary">{{ customer.service.name }}</span>
+                                <div class="currency mt-1">
+                                    <small>GH₵{{ customer.service.price }}</small>
+                                </div>
                             </div>
                             <div class="text-end">
                                 <div class="fw-bold text-warning">{{ get_wait_time(customer) }}</div>
