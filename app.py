@@ -98,7 +98,7 @@ class CustomerForm(FlaskForm):
 
     def __init__(self, *args, **kwargs):
         super(CustomerForm, self).__init__(*args, **kwargs)
-        services = Service.query.filter_by(is_active=True).order_by('name').all()
+        services = Service.query.order_by('name').all()
         self.service_id.choices = [(s.id, f"{s.name} ({s.duration} min • GH₵{s.price:.0f})") for s in services]
 
 # ============================================================================
@@ -106,8 +106,8 @@ class CustomerForm(FlaskForm):
 # ============================================================================
 
 def get_branches_dict():
-    """Get active branches as a dictionary"""
-    branches = Branch.query.filter_by(is_active=True).all()
+    """Get branches as a dictionary"""
+    branches = Branch.query.all()
     return {
         branch.code: {
             'name': branch.name,
@@ -146,7 +146,7 @@ def get_branch_stats(branch_code):
         Customer.status == 'completed',
         Customer.completed_at >= datetime.now().replace(hour=0, minute=0, second=0)
     ).count()
-    active_barbers = Barber.query.filter_by(branch=branch_code, is_active=True).count()
+    active_barbers = Barber.query.filter_by(branch=branch_code).count()
     
     return {
         'waiting': waiting,
@@ -267,7 +267,7 @@ def queue_manage(branch_code):
     
     waiting = Customer.query.filter_by(branch=branch_code, status='waiting').order_by(Customer.created_at).all()
     in_progress = Customer.query.filter_by(branch=branch_code, status='assigned').order_by(Customer.assigned_at).all()
-    barbers = Barber.query.filter_by(branch=branch_code, is_active=True).order_by(Barber.name).all()
+    barbers = Barber.query.filter_by(branch=branch_code).order_by(Barber.name).all()
     
     branches_dict = get_branches_dict()
     return render_template('queue.html', 
@@ -381,20 +381,92 @@ def add_branch():
     
     return redirect(url_for('settings'))
 
-@app.route('/toggle_service/<int:service_id>')
+# Additional routes for editing and deleting
+@app.route('/edit_service/<int:service_id>', methods=['POST'])
 @login_required
-def toggle_service(service_id):
+def edit_service(service_id):
+    if not current_user.is_master_admin():
+        flash('Only master admin can edit services.', 'error')
+        return redirect(url_for('settings'))
+    
     service = Service.query.get_or_404(service_id)
-    service.is_active = not service.is_active
-    db.session.commit()
+    name = request.form.get('name')
+    duration = request.form.get('duration')
+    price = request.form.get('price')
+    
+    if name and duration and price:
+        service.name = name
+        service.duration = int(duration)
+        service.price = float(price)
+        db.session.commit()
+        flash(f'Service "{name}" updated!', 'success')
+    
     return redirect(url_for('settings'))
 
-@app.route('/toggle_barber/<int:barber_id>')
+@app.route('/delete_service/<int:service_id>')
 @login_required
-def toggle_barber(barber_id):
-    barber = Barber.query.get_or_404(barber_id)
-    barber.is_active = not barber.is_active
+def delete_service(service_id):
+    if not current_user.is_master_admin():
+        flash('Only master admin can delete services.', 'error')
+        return redirect(url_for('settings'))
+    
+    service = Service.query.get_or_404(service_id)
+    
+    # Check if service is being used by any customers
+    active_customers = Customer.query.filter_by(service_id=service.id).filter(
+        Customer.status.in_(['waiting', 'assigned'])
+    ).count()
+    
+    if active_customers > 0:
+        flash(f'Cannot delete service - {active_customers} customers are using it.', 'error')
+        return redirect(url_for('settings'))
+    
+    name = service.name
+    db.session.delete(service)
     db.session.commit()
+    flash(f'Service "{name}" deleted successfully!', 'success')
+    return redirect(url_for('settings'))
+
+@app.route('/delete_barber/<int:barber_id>')
+@login_required
+def delete_barber(barber_id):
+    if not current_user.is_master_admin():
+        flash('Only master admin can delete barbers.', 'error')
+        return redirect(url_for('settings'))
+    
+    barber = Barber.query.get_or_404(barber_id)
+    
+    # Check if barber has active customers
+    active_customers = Customer.query.filter_by(barber_id=barber.id, status='assigned').count()
+    if active_customers > 0:
+        flash(f'Cannot delete {barber.name} - they have {active_customers} active customer(s).', 'error')
+        return redirect(url_for('settings'))
+    
+    name = barber.name
+    db.session.delete(barber)
+    db.session.commit()
+    flash(f'Barber "{name}" deleted successfully!', 'success')
+    return redirect(url_for('settings'))
+
+@app.route('/edit_branch/<int:branch_id>', methods=['POST'])
+@login_required
+def edit_branch(branch_id):
+    if not current_user.is_master_admin():
+        flash('Only master admin can edit branches.', 'error')
+        return redirect(url_for('settings'))
+    
+    branch = Branch.query.get_or_404(branch_id)
+    name = request.form.get('name')
+    address = request.form.get('address')
+    phone = request.form.get('phone')
+    
+    if name and address:
+        branch.name = name
+        branch.address = address
+        branch.phone = phone or ''
+        db.session.commit()
+        flash(f'Branch "{name}" updated!', 'success')
+    
     return redirect(url_for('settings'))
 
 # ============================================================================
