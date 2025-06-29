@@ -22,6 +22,13 @@
                             </span>
                             {{ form.username(class="form-control border-start-0") }}
                         </div>
+                        {% if form.username.errors %}
+                            <div class="text-danger mt-1">
+                                {% for error in form.username.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
                     </div>
                     
                     <div class="mb-4">
@@ -32,21 +39,56 @@
                             </span>
                             {{ form.password(class="form-control border-start-0") }}
                         </div>
+                        {% if form.password.errors %}
+                            <div class="text-danger mt-1">
+                                {% for error in form.password.errors %}
+                                    <small>{{ error }}</small>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
                     </div>
                     
-                    <div class="d-grid">
+                    <div class="d-grid mb-3">
                         {{ form.submit(class="btn btn-ghana btn-lg") }}
                     </div>
                 </form>
+                
+                <div class="text-center">
+                    <a href="{{ url_for('forgot_password') }}" class="text-decoration-none text-warning">
+                        <i class="bi bi-key"></i> Forgot your password?
+                    </a>
+                </div>
             </div>
             <!-- <div class="card-footer bg-light">
-                <small class="text-muted">
-                    <strong>Demo Accounts:</strong><br>
-                    👑 Master: master_admin/master123<br>
-                    🏪 Branch: main_admin/main123<br>
-                    👤 Staff: main_staff/staff123
-                </small>
-            </div> -->
+                <div class="row">
+                    <div class="col-12 mb-2">
+                        <small class="text-muted">
+                            <strong>🎯 Quick Access Demo Accounts:</strong>
+                        </small>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">
+                            👑 <strong>Master:</strong><br>
+                            <code>master_admin</code><br>
+                            <code>master123</code>
+                        </small>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">
+                            🏪 <strong>Branch:</strong><br>
+                            <code>main_admin</code><br>
+                            <code>main123</code>
+                        </small>
+                    </div>
+                </div> -->
+                <hr class="my-2">
+                <div class="text-center">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle"></i> 
+                        Need help? Contact your administrator or use forgot password if you have an email set up.
+                    </small>
+                </div>
+            </div>
         </div>
     </div>
 </div>
