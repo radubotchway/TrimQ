@@ -1,0 +1,31 @@
+# TrimQ Franchise Queue Management System
+# Requirements for Python dependencies
+
+# Core Flask Framework
+Flask
+Werkzeug
+
+# Database ORM
+Flask-SQLAlchemy
+SQLAlchemy
+
+# User Authentication & Session Management
+Flask-Login
+
+# Form Handling & Validation
+Flask-WTF
+WTForms
+
+# Email Validation Support
+email-validator
+
+# Additional Utilities (automatically installed with above)
+# Jinja2==3.1.2          # Template engine (included with Flask)
+# MarkupSafe==2.1.3       # Template security (included with Flask)
+# click==8.1.7            # CLI utilities (included with Flask)
+# blinker==1.7.0          # Signal support (included with Flask)
+# itsdangerous==2.1.2     # Security utilities (included with Flask)
+
+# Optional: For production deployment
+# gunicorn==21.2.0        # WSGI HTTP Server for production
+# python-dotenv==1.0.0    # Environment variable management
