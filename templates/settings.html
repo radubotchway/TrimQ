@@ -12,6 +12,224 @@
     </h2>
 </div>
 
+<!-- User Management (Master Admin and Self-Management) -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header {% if current_user.is_master_admin() %}master-header{% else %}branch-header{% endif %}">
+                <h4 class="mb-0 text-white">
+                    <i class="bi bi-people-fill"></i> 
+                    {% if current_user.is_master_admin() %}
+                        User Management - All Users
+                    {% else %}
+                        My Account Settings
+                    {% endif %}
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Add New User Form (Master Admin Only) -->
+                {% if current_user.is_master_admin() %}
+                <form method="POST" action="{{ url_for('add_user') }}" class="mb-4">
+                    <div class="row">
+                        <div class="col-md-2">
+                            <input type="text" name="username" class="form-control" placeholder="Username" required>
+                            <small class="text-muted">Unique identifier</small>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="password" name="password" class="form-control" placeholder="Password" required minlength="6">
+                            <small class="text-muted">Min 6 characters</small>
+                        </div>
+                        <div class="col-md-2">
+                            <select name="branch" class="form-select" required>
+                                <option value="">Select Branch</option>
+                                {% for branch_code, branch_info in BRANCHES.items() %}
+                                    <option value="{{ branch_code }}">{{ branch_info.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select name="role" class="form-select" required>
+                                <option value="branch_admin">Branch Admin</option>
+                                <option value="staff">Staff</option>
+                                <option value="master_admin">Master Admin</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <button type="submit" class="btn btn-ghana w-100">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                {% endif %}
+                
+                <!-- Users Table -->
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Role</th>
+                                <th>Branch</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                                <tr id="user-{{ user.id }}" class="{% if not user.is_active %}table-secondary{% endif %}">
+                                    <td>
+                                        <span class="user-username">
+                                            {{ user.username }}
+                                            {% if user.id == current_user.id %}
+                                                <span class="badge bg-primary ms-1">You</span>
+                                            {% endif %}
+                                        </span>
+                                        <input type="text" class="form-control d-none user-username-edit" value="{{ user.username }}">
+                                    </td>
+                                    <td>
+                                        <span class="user-role">
+                                            {% if user.role == 'master_admin' %}
+                                                <span class="badge bg-warning text-dark">
+                                                    <i class="bi bi-crown"></i> Master Admin
+                                                </span>
+                                            {% elif user.role == 'branch_admin' %}
+                                                <span class="badge bg-primary">
+                                                    <i class="bi bi-shield-check"></i> Branch Admin
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-info">
+                                                    <i class="bi bi-person"></i> Staff
+                                                </span>
+                                            {% endif %}
+                                        </span>
+                                        {% if current_user.is_master_admin() %}
+                                            <select class="form-select d-none user-role-edit">
+                                                <option value="branch_admin" {% if user.role == 'branch_admin' %}selected{% endif %}>Branch Admin</option>
+                                                <option value="staff" {% if user.role == 'staff' %}selected{% endif %}>Staff</option>
+                                                <option value="master_admin" {% if user.role == 'master_admin' %}selected{% endif %}>Master Admin</option>
+                                            </select>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="user-branch">
+                                            {{ BRANCHES.get(user.branch, {}).get('name', user.branch) }}
+                                        </span>
+                                        {% if current_user.is_master_admin() or current_user.id == user.id %}
+                                            <select class="form-select d-none user-branch-edit">
+                                                {% for branch_code, branch_info in BRANCHES.items() %}
+                                                    <option value="{{ branch_code }}" {% if user.branch == branch_code %}selected{% endif %}>
+                                                        {{ branch_info.name }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.is_active %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ user.created_at.strftime('%b %d, %Y') }}</small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <!-- Edit Button -->
+                                            {% if current_user.is_master_admin() or current_user.id == user.id %}
+                                                <button class="btn btn-sm btn-outline-primary edit-user-btn" data-user-id="{{ user.id }}" title="Edit User Details">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-success d-none save-user-btn" data-user-id="{{ user.id }}" title="Save Changes">
+                                                    <i class="bi bi-check"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-secondary d-none cancel-user-btn" data-user-id="{{ user.id }}" title="Cancel Changes">
+                                                    <i class="bi bi-x"></i>
+                                                </button>
+                                            {% endif %}
+                                            
+                                            <!-- Password Change Button -->
+                                            {% if current_user.is_master_admin() or current_user.id == user.id %}
+                                                <button class="btn btn-sm btn-outline-warning change-password-btn" data-user-id="{{ user.id }}" title="Change Password">
+                                                    <i class="bi bi-key"></i>
+                                                </button>
+                                            {% endif %}
+                                            
+                                            <!-- Master Admin Only Actions -->
+                                            {% if current_user.is_master_admin() and user.id != current_user.id %}
+                                                <a href="{{ url_for('toggle_user', user_id=user.id) }}" 
+                                                   class="btn btn-sm btn-outline-{% if user.is_active %}secondary{% else %}success{% endif %}"
+                                                   title="{% if user.is_active %}Deactivate User{% else %}Activate User{% endif %}"
+                                                   onclick="return confirm('Are you sure you want to {% if user.is_active %}deactivate{% else %}activate{% endif %} this user?')">
+                                                    <i class="bi bi-{% if user.is_active %}pause{% else %}play{% endif %}"></i>
+                                                </a>
+                                                <a href="{{ url_for('delete_user', user_id=user.id) }}" 
+                                                   class="btn btn-sm btn-outline-danger"
+                                                   title="Delete User Permanently"
+                                                   onclick="return confirm('Are you sure you want to permanently delete this user? This cannot be undone.')">
+                                                    <i class="bi bi-trash"></i>
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Password Change Section (Hidden by default) -->
+                                <tr class="d-none password-change-row" id="passwordRow{{ user.id }}">
+                                    <td colspan="6">
+                                        <div class="card border-warning">
+                                            <div class="card-header bg-warning bg-opacity-10">
+                                                <h6 class="mb-0">
+                                                    <i class="bi bi-key"></i> Change Password for {{ user.username }}
+                                                </h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <form method="POST" action="{{ url_for('change_password', user_id=user.id) }}">
+                                                    <div class="row">
+                                                        {% if current_user.id == user.id and not current_user.is_master_admin() %}
+                                                            <div class="col-md-3 mb-3">
+                                                                <label class="form-label">Current Password</label>
+                                                                <input type="password" class="form-control" name="current_password" required>
+                                                            </div>
+                                                        {% endif %}
+                                                        <div class="col-md-3 mb-3">
+                                                            <label class="form-label">New Password</label>
+                                                            <input type="password" class="form-control" name="new_password" required minlength="6">
+                                                            <small class="text-muted">Min 6 characters</small>
+                                                        </div>
+                                                        <div class="col-md-3 mb-3">
+                                                            <label class="form-label">Confirm Password</label>
+                                                            <input type="password" class="form-control" name="confirm_password" required minlength="6">
+                                                        </div>
+                                                        <div class="col-md-3 mb-3">
+                                                            <label class="form-label">&nbsp;</label>
+                                                            <div class="d-flex gap-2">
+                                                                <button type="submit" class="btn btn-warning btn-sm">
+                                                                    <i class="bi bi-key"></i> Change
+                                                                </button>
+                                                                <button type="button" class="btn btn-secondary btn-sm cancel-password-btn" data-user-id="{{ user.id }}">
+                                                                    <i class="bi bi-x"></i> Cancel
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Branch Management (Master Admin Only) -->
 {% if current_user.is_master_admin() %}
 <div class="row mb-4">
@@ -74,14 +292,14 @@
                                         <input type="text" class="form-control d-none branch-phone-edit" value="{{ branch.phone }}">
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary edit-branch-btn" data-branch-id="{{ branch.id }}">
-                                            <i class="bi bi-pencil"></i> Edit
+                                        <button class="btn btn-sm btn-outline-primary edit-branch-btn" data-branch-id="{{ branch.id }}" title="Edit Branch Details">
+                                            <i class="bi bi-pencil"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-success d-none save-branch-btn" data-branch-id="{{ branch.id }}">
-                                            <i class="bi bi-check"></i> Save
+                                        <button class="btn btn-sm btn-success d-none save-branch-btn" data-branch-id="{{ branch.id }}" title="Save Changes">
+                                            <i class="bi bi-check"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-secondary d-none cancel-branch-btn" data-branch-id="{{ branch.id }}">
-                                            <i class="bi bi-x"></i> Cancel
+                                        <button class="btn btn-sm btn-secondary d-none cancel-branch-btn" data-branch-id="{{ branch.id }}" title="Cancel Changes">
+                                            <i class="bi bi-x"></i>
                                         </button>
                                     </td>
                                 </tr>
@@ -163,17 +381,18 @@
                                     </td>
                                     {% if current_user.is_master_admin() %}
                                         <td>
-                                            <button class="btn btn-sm btn-outline-primary edit-service-btn" data-service-id="{{ service.id }}">
-                                                <i class="bi bi-pencil"></i> Edit
+                                            <button class="btn btn-sm btn-outline-primary edit-service-btn" data-service-id="{{ service.id }}" title="Edit Service Details">
+                                                <i class="bi bi-pencil"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-success d-none save-service-btn" data-service-id="{{ service.id }}">
-                                                <i class="bi bi-check"></i> Save
+                                            <button class="btn btn-sm btn-success d-none save-service-btn" data-service-id="{{ service.id }}" title="Save Changes">
+                                                <i class="bi bi-check"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-secondary d-none cancel-service-btn" data-service-id="{{ service.id }}">
-                                                <i class="bi bi-x"></i> Cancel
+                                            <button class="btn btn-sm btn-secondary d-none cancel-service-btn" data-service-id="{{ service.id }}" title="Cancel Changes">
+                                                <i class="bi bi-x"></i>
                                             </button>
                                             <a href="{{ url_for('delete_service', service_id=service.id) }}" 
                                                class="btn btn-sm btn-outline-danger ms-1"
+                                               title="Delete Service"
                                                onclick="return confirm('Are you sure you want to delete this service?')">
                                                 <i class="bi bi-trash"></i>
                                             </a>
@@ -250,8 +469,9 @@
                                         <td>
                                             <a href="{{ url_for('delete_barber', barber_id=barber.id) }}" 
                                                class="btn btn-sm btn-outline-danger"
+                                               title="Delete Barber"
                                                onclick="return confirm('Are you sure you want to delete this barber?')">
-                                                <i class="bi bi-trash"></i> Delete
+                                                <i class="bi bi-trash"></i>
                                             </a>
                                         </td>
                                     {% endif %}
@@ -268,6 +488,188 @@
 
 {% block scripts %}
 <script>
+// Password change functionality
+document.querySelectorAll('.change-password-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const userId = this.dataset.userId;
+        const passwordRow = document.getElementById(`passwordRow${userId}`);
+        
+        // Hide all other password rows
+        document.querySelectorAll('.password-change-row').forEach(row => {
+            if (row.id !== `passwordRow${userId}`) {
+                row.classList.add('d-none');
+            }
+        });
+        
+        // Toggle this password row
+        passwordRow.classList.toggle('d-none');
+        
+        // Focus on first input if shown
+        if (!passwordRow.classList.contains('d-none')) {
+            const firstInput = passwordRow.querySelector('input[type="password"]');
+            if (firstInput) {
+                setTimeout(() => firstInput.focus(), 100);
+            }
+        }
+    });
+});
+
+document.querySelectorAll('.cancel-password-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const userId = this.dataset.userId;
+        const passwordRow = document.getElementById(`passwordRow${userId}`);
+        
+        // Hide the password row
+        passwordRow.classList.add('d-none');
+        
+        // Clear all form inputs
+        passwordRow.querySelectorAll('input').forEach(input => {
+            input.value = '';
+        });
+    });
+});
+
+// Password confirmation validation
+document.querySelectorAll('input[name="confirm_password"]').forEach(input => {
+    input.addEventListener('input', function() {
+        const form = this.closest('form');
+        const newPassword = form.querySelector('input[name="new_password"]').value;
+        const confirmPassword = this.value;
+        
+        if (newPassword !== confirmPassword) {
+            this.setCustomValidity('Passwords do not match');
+            this.classList.add('is-invalid');
+        } else {
+            this.setCustomValidity('');
+            this.classList.remove('is-invalid');
+        }
+    });
+});
+
+// Initialize Bootstrap tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize tooltips for all elements with title attribute
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+// User management inline editing
+document.querySelectorAll('.edit-user-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const userId = this.dataset.userId;
+        const row = document.getElementById(`user-${userId}`);
+        
+        // Show edit elements, hide display elements
+        row.querySelector('.user-username').classList.add('d-none');
+        row.querySelector('.user-username-edit').classList.remove('d-none');
+        
+        const roleEdit = row.querySelector('.user-role-edit');
+        const branchEdit = row.querySelector('.user-branch-edit');
+        
+        if (roleEdit) {
+            row.querySelector('.user-role').classList.add('d-none');
+            roleEdit.classList.remove('d-none');
+        }
+        
+        if (branchEdit) {
+            row.querySelector('.user-branch').classList.add('d-none');
+            branchEdit.classList.remove('d-none');
+        }
+        
+        // Switch buttons
+        this.classList.add('d-none');
+        row.querySelector('.save-user-btn').classList.remove('d-none');
+        row.querySelector('.cancel-user-btn').classList.remove('d-none');
+    });
+});
+
+document.querySelectorAll('.cancel-user-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const userId = this.dataset.userId;
+        const row = document.getElementById(`user-${userId}`);
+        
+        // Show display elements, hide edit elements
+        row.querySelector('.user-username').classList.remove('d-none');
+        row.querySelector('.user-username-edit').classList.add('d-none');
+        
+        const roleEdit = row.querySelector('.user-role-edit');
+        const branchEdit = row.querySelector('.user-branch-edit');
+        
+        if (roleEdit) {
+            row.querySelector('.user-role').classList.remove('d-none');
+            roleEdit.classList.add('d-none');
+        }
+        
+        if (branchEdit) {
+            row.querySelector('.user-branch').classList.remove('d-none');
+            branchEdit.classList.add('d-none');
+        }
+        
+        // Switch buttons
+        this.classList.add('d-none');
+        row.querySelector('.save-user-btn').classList.add('d-none');
+        row.querySelector('.edit-user-btn').classList.remove('d-none');
+    });
+});
+
+document.querySelectorAll('.save-user-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const userId = this.dataset.userId;
+        const row = document.getElementById(`user-${userId}`);
+        
+        const username = row.querySelector('.user-username-edit').value;
+        const roleEdit = row.querySelector('.user-role-edit');
+        const branchEdit = row.querySelector('.user-branch-edit');
+        
+        // Create form and submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/edit_user/${userId}`;
+        
+        const usernameInput = document.createElement('input');
+        usernameInput.type = 'hidden';
+        usernameInput.name = 'username';
+        usernameInput.value = username;
+        form.appendChild(usernameInput);
+        
+        if (roleEdit) {
+            const roleInput = document.createElement('input');
+            roleInput.type = 'hidden';
+            roleInput.name = 'role';
+            roleInput.value = roleEdit.value;
+            form.appendChild(roleInput);
+        }
+        
+        if (branchEdit) {
+            const branchInput = document.createElement('input');
+            branchInput.type = 'hidden';
+            branchInput.name = 'branch';
+            branchInput.value = branchEdit.value;
+            form.appendChild(branchInput);
+        }
+        
+        document.body.appendChild(form);
+        form.submit();
+    });
+});
+
+// Password confirmation validation
+document.querySelectorAll('[id^="confirm_password"]').forEach(input => {
+    input.addEventListener('input', function() {
+        const userId = this.id.replace('confirm_password', '');
+        const newPassword = document.getElementById(`new_password${userId}`).value;
+        const confirmPassword = this.value;
+        
+        if (newPassword !== confirmPassword) {
+            this.setCustomValidity('Passwords do not match');
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+});
+
 // Inline editing for branches
 document.querySelectorAll('.edit-branch-btn').forEach(btn => {
     btn.addEventListener('click', function() {
