@@ -2,22 +2,25 @@
 # Requirements for Python dependencies
 
 # Core Flask Framework
-Flask
-Werkzeug
+Flask==3.0.0
+Werkzeug==3.0.1
 
 # Database ORM
-Flask-SQLAlchemy
-SQLAlchemy
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.23
 
 # User Authentication & Session Management
-Flask-Login
+Flask-Login==0.6.3
 
 # Form Handling & Validation
-Flask-WTF
-WTForms
+Flask-WTF==1.2.1
+WTForms==3.1.1
 
 # Email Validation Support
-email-validator
+email-validator==2.1.0
+
+# Environment Variable Management (REQUIRED for security)
+python-dotenv==1.0.0
 
 # Additional Utilities (automatically installed with above)
 # Jinja2==3.1.2          # Template engine (included with Flask)
@@ -28,4 +31,3 @@ email-validator
 
 # Optional: For production deployment
 # gunicorn==21.2.0        # WSGI HTTP Server for production
-# python-dotenv==1.0.0    # Environment variable management
