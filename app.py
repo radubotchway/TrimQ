@@ -1,19 +1,17 @@
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_wtf import FlaskForm
 from wtforms import StringField, SelectField, SubmitField, TextAreaField, PasswordField, IntegerField, FloatField
 from wtforms.validators import DataRequired, Length, Email, EqualTo
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
-import secrets
-import os
 from datetime import datetime, timedelta, date
 from sqlalchemy import func, and_
+import secrets
+import os
 
 load_dotenv()  # Load environment variables from .env file
-
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -25,8 +23,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')  # Set via environment variable
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')  # Set via environment variable
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'TrimQ System <noreply@trimq.com>')
 
 # Initialize extensions
@@ -107,17 +105,6 @@ class PasswordReset(db.Model):
     
     def is_valid(self):
         return not self.used and not self.is_expired()
-    
-class DailyRevenue(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    branch = db.Column(db.String(100), nullable=False)
-    date = db.Column(db.Date, nullable=False, default=date.today)
-    total_revenue = db.Column(db.Float, default=0.0)
-    total_customers = db.Column(db.Integer, default=0)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    __table_args__ = (db.UniqueConstraint('branch', 'date', name='unique_branch_date'),)
-
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -165,7 +152,6 @@ class ResetPasswordForm(FlaskForm):
 
 def send_password_reset_email(user, token):
     """Send password reset email to user"""
-    # Check if email is configured
     if not app.config['MAIL_USERNAME']:
         print("Email not configured. Password reset email would be sent to:", user.email)
         return False
@@ -175,16 +161,13 @@ def send_password_reset_email(user, token):
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
         
-        # Create message
         msg = MIMEMultipart('alternative')
         msg['Subject'] = 'TrimQ - Password Reset Request'
         msg['From'] = app.config['MAIL_DEFAULT_SENDER']
         msg['To'] = user.email
         
-        # Create reset URL
         reset_url = url_for('reset_password', token=token, _external=True)
         
-        # HTML email template
         html_body = f"""
         <!DOCTYPE html>
         <html>
@@ -239,7 +222,6 @@ def send_password_reset_email(user, token):
         </html>
         """
         
-        # Plain text version
         text_body = f"""
         TrimQ Password Reset Request
         
@@ -257,11 +239,9 @@ def send_password_reset_email(user, token):
         TrimQ Franchise Management System
         """
         
-        # Attach parts
         msg.attach(MIMEText(text_body, 'plain'))
         msg.attach(MIMEText(html_body, 'html'))
         
-        # Send email
         with smtplib.SMTP(app.config['MAIL_SERVER'], app.config['MAIL_PORT']) as server:
             server.starttls()
             server.login(app.config['MAIL_USERNAME'], app.config['MAIL_PASSWORD'])
@@ -326,41 +306,117 @@ def get_branch_stats(branch_code):
         'active_barbers': active_barbers
     }
 
-def update_daily_revenue(branch_code, revenue_amount, increment_customers=True):
-    """Update daily revenue for a branch"""
-    today = date.today()
-    
-    # Get or create daily revenue record
-    daily_revenue = DailyRevenue.query.filter_by(branch=branch_code, date=today).first()
-    
-    if not daily_revenue:
-        daily_revenue = DailyRevenue(
-            branch=branch_code,
-            date=today,
-            total_revenue=revenue_amount,
-            total_customers=1 if increment_customers else 0
-        )
-        db.session.add(daily_revenue)
-    else:
-        daily_revenue.total_revenue += revenue_amount
-        if increment_customers:
-            daily_revenue.total_customers += 1
-        daily_revenue.updated_at = datetime.utcnow()
-    
-    db.session.commit()
-    return daily_revenue
-
-def get_daily_revenue_report(target_date=None, branch_code=None):
-    """Get daily revenue report for a specific date and optionally branch"""
+def get_real_time_revenue_data(target_date=None, branch_code=None):
+    """Get real-time revenue data calculated from completed customers"""
     if not target_date:
         target_date = date.today()
     
-    query = DailyRevenue.query.filter_by(date=target_date)
+    start_datetime = datetime.combine(target_date, datetime.min.time())
+    end_datetime = datetime.combine(target_date, datetime.max.time())
+    
+    query = db.session.query(
+        Customer.branch,
+        func.sum(Service.price).label('total_revenue'),
+        func.count(Customer.id).label('total_customers')
+    ).join(Service, Customer.service_id == Service.id).filter(
+        Customer.status == 'completed',
+        Customer.completed_at >= start_datetime,
+        Customer.completed_at <= end_datetime
+    )
     
     if branch_code:
-        query = query.filter_by(branch=branch_code)
+        query = query.filter(Customer.branch == branch_code)
     
-    return query.order_by(DailyRevenue.total_revenue.desc()).all()
+    revenue_data = query.group_by(Customer.branch).order_by(
+        func.sum(Service.price).desc()
+    ).all()
+    
+    result = []
+    for record in revenue_data:
+        result.append({
+            'branch': record.branch,
+            'total_revenue': float(record.total_revenue or 0),
+            'total_customers': int(record.total_customers or 0),
+            'date': target_date,
+            'updated_at': datetime.utcnow()
+        })
+    
+    return result
+
+def get_branch_revenue_summary(branch_code, target_date=None):
+    """Get revenue summary for a specific branch"""
+    if not target_date:
+        target_date = date.today()
+    
+    start_datetime = datetime.combine(target_date, datetime.min.time())
+    end_datetime = datetime.combine(target_date, datetime.max.time())
+    
+    result = db.session.query(
+        func.sum(Service.price).label('total_revenue'),
+        func.count(Customer.id).label('total_customers')
+    ).join(Service, Customer.service_id == Service.id).filter(
+        Customer.branch == branch_code,
+        Customer.status == 'completed',
+        Customer.completed_at >= start_datetime,
+        Customer.completed_at <= end_datetime
+    ).first()
+    
+    return {
+        'branch': branch_code,
+        'total_revenue': float(result.total_revenue or 0),
+        'total_customers': int(result.total_customers or 0),
+        'date': target_date,
+        'updated_at': datetime.utcnow()
+    }
+
+def get_service_breakdown(branch_code=None, target_date=None):
+    """Get service-wise revenue breakdown"""
+    if not target_date:
+        target_date = date.today()
+    
+    start_datetime = datetime.combine(target_date, datetime.min.time())
+    end_datetime = datetime.combine(target_date, datetime.max.time())
+    
+    query = db.session.query(
+        Service.name,
+        Service.price,
+        func.count(Customer.id).label('service_count'),
+        func.sum(Service.price).label('service_revenue')
+    ).join(Customer, Customer.service_id == Service.id).filter(
+        Customer.status == 'completed',
+        Customer.completed_at >= start_datetime,
+        Customer.completed_at <= end_datetime
+    )
+    
+    if branch_code:
+        query = query.filter(Customer.branch == branch_code)
+    
+    return query.group_by(Service.id).order_by(
+        func.sum(Service.price).desc()
+    ).all()
+
+def get_hourly_revenue_trend(branch_code=None, target_date=None):
+    """Get hourly revenue trend for the day"""
+    if not target_date:
+        target_date = date.today()
+    
+    start_datetime = datetime.combine(target_date, datetime.min.time())
+    end_datetime = datetime.combine(target_date, datetime.max.time())
+    
+    query = db.session.query(
+        func.extract('hour', Customer.completed_at).label('hour'),
+        func.sum(Service.price).label('hour_revenue'),
+        func.count(Customer.id).label('hour_customers')
+    ).join(Service, Customer.service_id == Service.id).filter(
+        Customer.status == 'completed',
+        Customer.completed_at >= start_datetime,
+        Customer.completed_at <= end_datetime
+    )
+    
+    if branch_code:
+        query = query.filter(Customer.branch == branch_code)
+    
+    return query.group_by(func.extract('hour', Customer.completed_at)).order_by('hour').all()
 
 def generate_ticket_number(customer_id, branch_code):
     """Generate a unique ticket number"""
@@ -385,21 +441,64 @@ def index():
         return render_template('welcome.html')
     
     if current_user.is_master_admin():
-        # Master admin dashboard
+        # Master admin dashboard with real-time franchise stats
         branches_dict = get_branches_dict()
-        branch_stats = {code: get_branch_stats(code) for code in branches_dict.keys()}
+        today_date = date.today()
+        
+        # Get real-time revenue for all branches
+        all_revenue_data = get_real_time_revenue_data(today_date)
+        branch_revenue = {r['branch']: r for r in all_revenue_data}
+        
+        branch_stats = {}
         franchise_stats = {
-            'total_waiting': sum(stats['waiting'] for stats in branch_stats.values()),
-            'total_in_progress': sum(stats['in_progress'] for stats in branch_stats.values()),
-            'total_completed_today': sum(stats['completed_today'] for stats in branch_stats.values()),
-            'total_barbers': sum(stats['active_barbers'] for stats in branch_stats.values())
+            'total_waiting': 0,
+            'total_in_progress': 0,
+            'total_completed_today': 0,
+            'total_barbers': 0,
+            'total_revenue': 0
         }
+        
+        for code in branches_dict.keys():
+            waiting = Customer.query.filter_by(branch=code, status='waiting').count()
+            in_progress = Customer.query.filter_by(branch=code, status='assigned').count()
+            completed_today = Customer.query.filter(
+                Customer.branch == code,
+                Customer.status == 'completed',
+                Customer.completed_at >= datetime.now().replace(hour=0, minute=0, second=0)
+            ).count()
+            active_barbers = Barber.query.filter_by(branch=code).count()
+            
+            # Get real-time revenue
+            revenue_info = branch_revenue.get(code, {'total_revenue': 0, 'total_customers': 0})
+            
+            branch_stats[code] = {
+                'waiting': waiting,
+                'in_progress': in_progress,
+                'completed_today': completed_today,
+                'active_barbers': active_barbers,
+                'revenue': revenue_info['total_revenue'],
+                'revenue_customers': revenue_info['total_customers']
+            }
+            
+            # Add to franchise totals
+            franchise_stats['total_waiting'] += waiting
+            franchise_stats['total_in_progress'] += in_progress
+            franchise_stats['total_completed_today'] += completed_today
+            franchise_stats['total_barbers'] += active_barbers
+            franchise_stats['total_revenue'] += revenue_info['total_revenue']
+        
         return render_template('master_dashboard.html',
                              franchise_stats=franchise_stats,
                              branch_stats=branch_stats)
     else:
-        # Branch admin dashboard
+        # Branch admin dashboard with real-time branch stats
         branch_stats = get_branch_stats(current_user.branch)
+        
+        # Add real-time revenue
+        revenue_data = get_branch_revenue_summary(current_user.branch)
+        branch_stats['revenue'] = revenue_data['total_revenue']
+        branch_stats['revenue_customers'] = revenue_data['total_customers']
+        
         return render_template('dashboard.html', **branch_stats)
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -434,25 +533,20 @@ def forgot_password():
         user = User.query.filter_by(email=form.email.data.lower().strip()).first()
         
         if user:
-            # Generate secure token
             token = secrets.token_urlsafe(32)
-            
-            # Create password reset record
             reset_request = PasswordReset(
                 user_id=user.id,
                 token=token,
-                expires_at=datetime.utcnow() + timedelta(hours=1)  # 1 hour expiry
+                expires_at=datetime.utcnow() + timedelta(hours=1)
             )
             db.session.add(reset_request)
             db.session.commit()
             
-            # Send email
             if send_password_reset_email(user, token):
                 flash('Password reset instructions have been sent to your email.', 'success')
             else:
                 flash('Failed to send email. Please contact your administrator.', 'error')
         else:
-            # Don't reveal if email exists or not for security
             flash('If an account with that email exists, password reset instructions have been sent.', 'info')
         
         return redirect(url_for('login'))
@@ -464,7 +558,6 @@ def reset_password(token):
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     
-    # Find valid reset request
     reset_request = PasswordReset.query.filter_by(token=token).first()
     
     if not reset_request or not reset_request.is_valid():
@@ -473,13 +566,9 @@ def reset_password(token):
     
     form = ResetPasswordForm()
     if form.validate_on_submit():
-        # Update user password
         user = reset_request.user
         user.password = generate_password_hash(form.password.data)
-        
-        # Mark reset request as used
         reset_request.used = True
-        
         db.session.commit()
         
         flash('Your password has been reset successfully. You can now log in.', 'success')
@@ -525,7 +614,6 @@ def add_customer(branch_code=None):
         db.session.add(customer)
         db.session.commit()
         
-        # Check if user wants to print ticket
         print_ticket_option = request.form.get('print_ticket')
         if print_ticket_option:
             flash(f'{customer.name} added to queue!', 'success')
@@ -581,13 +669,8 @@ def complete_customer(customer_id):
     customer = Customer.query.get_or_404(customer_id)
     customer.status = 'completed'
     customer.completed_at = datetime.utcnow()
-    
-    # Update daily revenue when service is completed
-    service_price = customer.service.price if customer.service else 0
-    update_daily_revenue(customer.branch, service_price, increment_customers=True)
-    
     db.session.commit()
-    flash(f'{customer.name} service completed!', 'success')
+    flash(f'{customer.name} service completed! Revenue updated automatically.', 'success')
     return redirect(url_for('queue_manage', branch_code=customer.branch))
 
 @app.route('/display/<branch_code>')
@@ -602,6 +685,175 @@ def public_display(branch_code):
                          branch_code=branch_code,
                          branch_info=branches_dict.get(branch_code, {}))
 
+@app.route('/ticket/<int:customer_id>')
+@login_required
+def print_ticket(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    
+    if not current_user.is_master_admin() and current_user.branch != customer.branch:
+        flash('Access denied.', 'error')
+        return redirect(url_for('index'))
+    
+    ticket_number = generate_ticket_number(customer.id, customer.branch)
+    queue_position = Customer.query.filter(
+        Customer.branch == customer.branch,
+        Customer.status == 'waiting',
+        Customer.created_at <= customer.created_at
+    ).count()
+    
+    estimated_wait = get_wait_time(customer)
+    branches_dict = get_branches_dict()
+    
+    return render_template('ticket.html', 
+                         customer=customer,
+                         ticket_number=ticket_number,
+                         queue_position=queue_position,
+                         estimated_wait=estimated_wait,
+                         branch_info=branches_dict.get(customer.branch, {}))
+
+@app.route('/revenue-report')
+@login_required
+def revenue_report():
+    # Get date from query parameter, default to today
+    report_date_str = request.args.get('date')
+    if report_date_str:
+        try:
+            report_date = datetime.strptime(report_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            report_date = date.today()
+    else:
+        report_date = date.today()
+    
+    # Get real-time revenue data based on user role
+    if current_user.is_master_admin():
+        revenue_data = get_real_time_revenue_data(report_date)
+        service_breakdown = get_service_breakdown(target_date=report_date)
+        branches_dict = get_branches_dict()
+    else:
+        revenue_data = get_real_time_revenue_data(report_date, current_user.branch)
+        service_breakdown = get_service_breakdown(current_user.branch, report_date)
+        branches_dict = get_branches_dict()
+    
+    # Calculate totals
+    total_revenue = sum(r['total_revenue'] for r in revenue_data)
+    total_customers = sum(r['total_customers'] for r in revenue_data)
+    
+    # Get hourly trends
+    if current_user.is_master_admin():
+        hourly_trend = get_hourly_revenue_trend(target_date=report_date)
+    else:
+        hourly_trend = get_hourly_revenue_trend(current_user.branch, report_date)
+    
+    return render_template('revenue_report.html',
+                         revenue_data=revenue_data,
+                         service_breakdown=service_breakdown,
+                         hourly_trend=hourly_trend,
+                         report_date=report_date,
+                         total_revenue=total_revenue,
+                         total_customers=total_customers,
+                         today=date.today(),
+                         timedelta=timedelta,
+                         branches_dict=branches_dict)
+
+@app.route('/api/revenue/<branch_code>')
+@login_required
+def api_branch_revenue(branch_code):
+    """API endpoint to get real-time revenue for a branch"""
+    if not current_user.is_master_admin() and current_user.branch != branch_code:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    today = date.today()
+    revenue_data = get_branch_revenue_summary(branch_code, today)
+    
+    return jsonify({
+        'branch': branch_code,
+        'date': today.isoformat(),
+        'total_revenue': revenue_data['total_revenue'],
+        'total_customers': revenue_data['total_customers'],
+        'last_updated': revenue_data['updated_at'].isoformat()
+    })
+
+@app.route('/api/revenue/all')
+@login_required
+def api_all_revenue():
+    """API endpoint to get real-time revenue for all branches (Master Admin only)"""
+    if not current_user.is_master_admin():
+        return jsonify({'error': 'Access denied'}), 403
+    
+    today = date.today()
+    revenue_data = get_real_time_revenue_data(today)
+    
+    # Include branches with zero revenue
+    all_branches = get_branches_dict()
+    branch_revenue = {r['branch']: r for r in revenue_data}
+    
+    result = []
+    for branch_code in all_branches.keys():
+        if branch_code in branch_revenue:
+            result.append(branch_revenue[branch_code])
+        else:
+            result.append({
+                'branch': branch_code,
+                'total_revenue': 0.0,
+                'total_customers': 0,
+                'date': today,
+                'updated_at': datetime.utcnow()
+            })
+    
+    total_revenue = sum(r['total_revenue'] for r in result)
+    total_customers = sum(r['total_customers'] for r in result)
+    
+    return jsonify({
+        'branches': result,
+        'totals': {
+            'total_revenue': total_revenue,
+            'total_customers': total_customers,
+            'date': today.isoformat(),
+            'last_updated': datetime.utcnow().isoformat()
+        }
+    })
+
+@app.route('/api/service-breakdown/<branch_code>')
+@login_required
+def api_service_breakdown(branch_code):
+    """API endpoint for service breakdown"""
+    if not current_user.is_master_admin() and current_user.branch != branch_code:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    today = date.today()
+    breakdown = get_service_breakdown(branch_code if branch_code != 'all' else None, today)
+    
+    result = []
+    for service in breakdown:
+        result.append({
+            'service_name': service.name,
+            'price': float(service.price),
+            'count': int(service.service_count),
+            'revenue': float(service.service_revenue)
+        })
+    
+    return jsonify({'services': result})
+
+@app.route('/api/hourly-trend/<branch_code>')
+@login_required
+def api_hourly_trend(branch_code):
+    """API endpoint for hourly revenue trend"""
+    if not current_user.is_master_admin() and current_user.branch != branch_code:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    today = date.today()
+    trend = get_hourly_revenue_trend(branch_code if branch_code != 'all' else None, today)
+    
+    result = []
+    for hour_data in trend:
+        result.append({
+            'hour': int(hour_data.hour),
+            'revenue': float(hour_data.hour_revenue or 0),
+            'customers': int(hour_data.hour_customers or 0)
+        })
+    
+    return jsonify({'hourly_data': result})
+
 @app.route('/settings')
 @login_required
 def settings():
@@ -614,7 +866,7 @@ def settings():
     else:
         barbers = Barber.query.filter_by(branch=current_user.branch).order_by(Barber.name).all()
         branches = []
-        users = [current_user]  # Only show their own account
+        users = [current_user]
     
     return render_template('settings.html', 
                          services=services, 
@@ -635,7 +887,6 @@ def add_user():
     branch = request.form.get('branch', '').strip()
     role = request.form.get('role', 'branch_admin').strip()
     
-    # Validation
     if not username or not password or not branch:
         flash('Username, password, and branch are required.', 'error')
         return redirect(url_for('settings'))
@@ -644,22 +895,18 @@ def add_user():
         flash('Password must be at least 6 characters long.', 'error')
         return redirect(url_for('settings'))
     
-    # Check if username already exists
     if User.query.filter_by(username=username).first():
         flash('Username already exists. Please choose a different one.', 'error')
         return redirect(url_for('settings'))
     
-    # Check if email is already taken
     if email and User.query.filter_by(email=email).first():
         flash('Email address is already in use.', 'error')
         return redirect(url_for('settings'))
     
-    # Validate branch exists
     if not Branch.query.filter_by(code=branch).first():
         flash('Invalid branch selected.', 'error')
         return redirect(url_for('settings'))
     
-    # Create new user
     user = User(
         username=username,
         email=email,
@@ -678,7 +925,6 @@ def add_user():
 def edit_user(user_id):
     user = User.query.get_or_404(user_id)
     
-    # Permission check
     if not current_user.is_master_admin() and current_user.id != user_id:
         flash('You can only edit your own account.', 'error')
         return redirect(url_for('settings'))
@@ -692,25 +938,21 @@ def edit_user(user_id):
         flash('Username and branch are required.', 'error')
         return redirect(url_for('settings'))
     
-    # Check if username is taken by another user
     existing_user = User.query.filter_by(username=username).first()
     if existing_user and existing_user.id != user.id:
         flash('Username already exists. Please choose a different one.', 'error')
         return redirect(url_for('settings'))
     
-    # Check if email is taken by another user
     if email:
         existing_email = User.query.filter_by(email=email).first()
         if existing_email and existing_email.id != user.id:
             flash('Email address is already in use.', 'error')
             return redirect(url_for('settings'))
     
-    # Update user info
     user.username = username
     user.email = email
     user.branch = branch
     
-    # Only master admin can change roles
     if current_user.is_master_admin() and role:
         user.role = role
     
@@ -723,7 +965,6 @@ def edit_user(user_id):
 def change_password(user_id):
     user = User.query.get_or_404(user_id)
     
-    # Permission check
     if not current_user.is_master_admin() and current_user.id != user_id:
         flash('You can only change your own password.', 'error')
         return redirect(url_for('settings'))
@@ -732,13 +973,11 @@ def change_password(user_id):
     new_password = request.form.get('new_password', '').strip()
     confirm_password = request.form.get('confirm_password', '').strip()
     
-    # For non-master admin, verify current password
     if current_user.id == user_id and not current_user.is_master_admin():
         if not current_password or not check_password_hash(user.password, current_password):
             flash('Current password is incorrect.', 'error')
             return redirect(url_for('settings'))
     
-    # Validate new password
     if len(new_password) < 6:
         flash('New password must be at least 6 characters long.', 'error')
         return redirect(url_for('settings'))
@@ -747,7 +986,6 @@ def change_password(user_id):
         flash('New passwords do not match.', 'error')
         return redirect(url_for('settings'))
     
-    # Update password
     user.password = generate_password_hash(new_password)
     db.session.commit()
     
@@ -763,7 +1001,6 @@ def toggle_user(user_id):
     
     user = User.query.get_or_404(user_id)
     
-    # Prevent master admin from deactivating themselves
     if user.id == current_user.id:
         flash('You cannot deactivate your own account.', 'error')
         return redirect(url_for('settings'))
@@ -784,7 +1021,6 @@ def delete_user(user_id):
     
     user = User.query.get_or_404(user_id)
     
-    # Prevent master admin from deleting themselves
     if user.id == current_user.id:
         flash('You cannot delete your own account.', 'error')
         return redirect(url_for('settings'))
@@ -841,7 +1077,6 @@ def delete_service(service_id):
     
     service = Service.query.get_or_404(service_id)
     
-    # Check if service is being used by any customers
     active_customers = Customer.query.filter_by(service_id=service.id).filter(
         Customer.status.in_(['waiting', 'assigned'])
     ).count()
@@ -879,7 +1114,6 @@ def delete_barber(barber_id):
     
     barber = Barber.query.get_or_404(barber_id)
     
-    # Check if barber has active customers
     active_customers = Customer.query.filter_by(barber_id=barber.id, status='assigned').count()
     if active_customers > 0:
         flash(f'Cannot delete {barber.name} - they have {active_customers} active customer(s).', 'error')
@@ -935,94 +1169,6 @@ def edit_branch(branch_id):
     
     return redirect(url_for('settings'))
 
-@app.route('/ticket/<int:customer_id>')
-@login_required
-def print_ticket(customer_id):
-    customer = Customer.query.get_or_404(customer_id)
-    
-    if not current_user.is_master_admin() and current_user.branch != customer.branch:
-        flash('Access denied.', 'error')
-        return redirect(url_for('index'))
-    
-    # Generate ticket details
-    ticket_number = generate_ticket_number(customer.id, customer.branch)
-    queue_position = Customer.query.filter(
-        Customer.branch == customer.branch,
-        Customer.status == 'waiting',
-        Customer.created_at <= customer.created_at
-    ).count()
-    
-    estimated_wait = get_wait_time(customer)
-    branches_dict = get_branches_dict()
-    
-    return render_template('ticket.html', 
-                         customer=customer,
-                         ticket_number=ticket_number,
-                         queue_position=queue_position,
-                         estimated_wait=estimated_wait,
-                         branch_info=branches_dict.get(customer.branch, {}))
-
-@app.route('/revenue-report')
-@login_required
-def revenue_report():
-    # Get date from query parameter, default to today
-    report_date_str = request.args.get('date')
-    if report_date_str:
-        try:
-            report_date = datetime.strptime(report_date_str, '%Y-%m-%d').date()
-        except ValueError:
-            report_date = date.today()
-    else:
-        report_date = date.today()
-    
-    # Get revenue data based on user role
-    if current_user.is_master_admin():
-        revenue_data = get_daily_revenue_report(report_date)
-        branches_dict = get_branches_dict()
-    else:
-        revenue_data = get_daily_revenue_report(report_date, current_user.branch)
-        branches_dict = get_branches_dict()
-    
-    # Calculate totals
-    total_revenue = sum(r.total_revenue for r in revenue_data)
-    total_customers = sum(r.total_customers for r in revenue_data)
-    
-    return render_template('revenue_report.html',
-                         revenue_data=revenue_data,
-                         report_date=report_date,
-                         total_revenue=total_revenue,
-                         total_customers=total_customers,
-                         today=date.today(),
-                         timedelta=timedelta,
-                         branches_dict=branches_dict)
-
-@app.route('/api/revenue/<branch_code>')
-@login_required
-def api_branch_revenue(branch_code):
-    """API endpoint to get real-time revenue for a branch"""
-    if not current_user.is_master_admin() and current_user.branch != branch_code:
-        return {'error': 'Access denied'}, 403
-    
-    today = date.today()
-    revenue_record = DailyRevenue.query.filter_by(branch=branch_code, date=today).first()
-    
-    if revenue_record:
-        return {
-            'branch': branch_code,
-            'date': today.isoformat(),
-            'total_revenue': revenue_record.total_revenue,
-            'total_customers': revenue_record.total_customers,
-            'last_updated': revenue_record.updated_at.isoformat()
-        }
-    else:
-        return {
-            'branch': branch_code,
-            'date': today.isoformat(),
-            'total_revenue': 0.0,
-            'total_customers': 0,
-            'last_updated': None
-        }
-
 # ============================================================================
 # UTILITY FUNCTIONS FOR MAINTENANCE
 # ============================================================================
@@ -1030,23 +1176,19 @@ def api_branch_revenue(branch_code):
 def migrate_database():
     """Handle database schema migrations"""
     try:
-        # Check if email column exists in user table
         with db.engine.connect() as conn:
             result = conn.execute(db.text("PRAGMA table_info(user)"))
             columns = [row[1] for row in result.fetchall()]
             
-            # Add email column if it doesn't exist
             if 'email' not in columns:
                 print("Adding email column to user table...")
                 conn.execute(db.text("ALTER TABLE user ADD COLUMN email VARCHAR(120) UNIQUE"))
                 conn.commit()
                 print("✅ Email column added successfully!")
             
-            # Check if password_reset table exists
             result = conn.execute(db.text("SELECT name FROM sqlite_master WHERE type='table' AND name='password_reset'"))
             if not result.fetchone():
                 print("Creating password_reset table...")
-                # Let SQLAlchemy create the table
                 PasswordReset.__table__.create(db.engine, checkfirst=True)
                 print("✅ Password reset table created successfully!")
                 
@@ -1071,8 +1213,7 @@ def cleanup_expired_resets():
 # ============================================================================
 
 def create_sample_data():
-    """Create sample data"""
-    # Create branches
+    """Create sample data (no static revenue data)"""
     branches_data = [
         {'code': 'main', 'name': 'Main Branch', 'address': '123 Oxford Street, Osu', 'phone': '0302-123-456'},
         {'code': 'downtown', 'name': 'Downtown Branch', 'address': '45 Kwame Nkrumah Ave, Adabraka', 'phone': '0302-789-012'},
@@ -1084,7 +1225,6 @@ def create_sample_data():
             branch = Branch(**branch_data)
             db.session.add(branch)
     
-    # Create services
     services_data = [
         {'name': 'Classic Cut', 'duration': 30, 'price': 50},
         {'name': 'Beard Styling', 'duration': 20, 'price': 35},
@@ -1098,7 +1238,6 @@ def create_sample_data():
             service = Service(**service_data)
             db.session.add(service)
     
-    # Create barbers
     barbers_data = [
         {'name': 'Kwame Asante', 'branch': 'main'},
         {'name': 'Kofi Mensah', 'branch': 'main'},
@@ -1107,38 +1246,12 @@ def create_sample_data():
         {'name': 'Isaac Adjei', 'branch': 'uptown'},
         {'name': 'Prince Agyemang', 'branch': 'uptown'}
     ]
-
-    # Create sample daily revenue for today (for demonstration)
-    today = date.today()
-    sample_revenue_data = [
-        {'branch': 'main', 'revenue': 450.00, 'customers': 9},
-        {'branch': 'downtown', 'revenue': 320.00, 'customers': 7},
-        {'branch': 'uptown', 'revenue': 280.00, 'customers': 6}
-    ]
-    for data in sample_revenue_data:
-        existing = DailyRevenue.query.filter_by(branch=data['branch'], date=today).first()
-        if not existing:
-            revenue_record = DailyRevenue(
-                branch=data['branch'],
-                date=today,
-                total_revenue=data['revenue'],
-                total_customers=data['customers']
-            )
-            db.session.add(revenue_record)
-    
-    try:
-        db.session.commit()
-        print("✅ Sample revenue data created/updated successfully!")
-    except Exception as e:
-        print(f"Error creating sample revenue data: {e}")
-        db.session.rollback()
     
     for barber_data in barbers_data:
         if not Barber.query.filter_by(name=barber_data['name'], branch=barber_data['branch']).first():
             barber = Barber(**barber_data)
             db.session.add(barber)
     
-    # Create users - check if they exist first (safer approach)
     users_data = [
         {'username': 'master_admin', 'password': 'master123', 'role': 'master_admin', 'branch': 'main', 'email': 'master@trimq.com'},
         {'username': 'main_admin', 'password': 'main123', 'role': 'branch_admin', 'branch': 'main', 'email': 'main@trimq.com'},
@@ -1148,7 +1261,6 @@ def create_sample_data():
     
     for user_data in users_data:
         try:
-            # Check if user exists by username
             existing_user = User.query.filter_by(username=user_data['username']).first()
             if not existing_user:
                 user = User(
@@ -1160,7 +1272,6 @@ def create_sample_data():
                 )
                 db.session.add(user)
             else:
-                # Update existing user with email if they don't have one
                 if not existing_user.email:
                     existing_user.email = user_data['email']
         except Exception as e:
@@ -1176,16 +1287,10 @@ def create_sample_data():
 
 if __name__ == '__main__':
     with app.app_context():
-        # Create all tables first
         db.create_all()
-        
-        # Handle database migrations
         migrate_database()
-        
-        # Create sample data
         create_sample_data()
         
-        # Clean up any expired password reset tokens
         try:
             expired_count = cleanup_expired_resets()
             if expired_count > 0:
@@ -1199,10 +1304,12 @@ if __name__ == '__main__':
         print("🏪 Main Branch: main_admin / main123")
         print("🏪 Downtown Branch: downtown_admin / downtown123") 
         print("🏪 East Legon Branch: uptown_admin / uptown123")
-        print("\n💰 New Features:")
+        print("\n💰 Real-Time Features:")
         print("🎫 Ticket Generation: Available when adding customers")
-        print("📊 Revenue Reports: /revenue-report endpoint")
-        print("💵 Daily Revenue Tracking: Automatic when completing services")
+        print("📊 Real-Time Revenue: Calculated live from completed services")
+        print("⚡ Live Updates: Revenue updates instantly when services complete")
+        print("📈 Service Breakdown: Real-time analysis by service type")
+        print("🕐 Hourly Trends: Live hourly revenue tracking")
         print("\n🌐 Access: http://127.0.0.1:5000")
     
     app.run(debug=True)

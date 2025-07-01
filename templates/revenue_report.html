@@ -3,12 +3,18 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2 class="fw-bold">
-        <i class="bi bi-graph-up"></i> Revenue Reports
+        <i class="bi bi-graph-up"></i> Real-Time Revenue Reports
         {% if not current_user.is_master_admin() %}
             - {{ BRANCHES[current_user.branch].name }}
         {% endif %}
+        <span class="badge bg-success ms-2" id="liveIndicator">
+            <i class="bi bi-circle-fill blink"></i> LIVE
+        </span>
     </h2>
     <div class="btn-group">
+        <button type="button" class="btn btn-outline-primary" onclick="refreshData()" id="refreshBtn">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
         <button type="button" class="btn btn-outline-primary" onclick="window.print()">
             <i class="bi bi-printer"></i> Print Report
         </button>
@@ -28,9 +34,10 @@
                         <label class="form-label fw-semibold">Report Date</label>
                         <input type="date" name="date" class="form-control" 
                                value="{{ report_date.isoformat() }}" 
-                               max="{{ today.strftime('%Y-%m-%d') }}">
+                               max="{{ today.strftime('%Y-%m-%d') }}"
+                               id="dateInput">
                     </div>
-                    <button type="submit" class="btn btn-barbers">
+                    <button type="submit" class="btn btn-primary">
                         <i class="bi bi-search"></i> View Report
                     </button>
                 </form>
@@ -41,7 +48,15 @@
         <div class="card bg-primary text-white">
             <div class="card-body text-center">
                 <h3 class="mb-1">{{ report_date.strftime('%B %d, %Y') }}</h3>
-                <p class="mb-0">{{ report_date.strftime('%A') }}</p>
+                <p class="mb-0">
+                    {{ report_date.strftime('%A') }}
+                    {% if report_date == today %}
+                        • <span class="badge bg-light text-primary">TODAY</span>
+                    {% endif %}
+                </p>
+                <small class="text-light">
+                    <i class="bi bi-clock"></i> Last updated: <span id="lastUpdated">{{ now.strftime('%H:%M:%S') }}</span>
+                </small>
             </div>
         </div>
     </div>
@@ -49,41 +64,45 @@
 
 <!-- Summary Cards -->
 <div class="row mb-4">
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 mb-3">
         <div class="stat-card border-success">
-            <div class="stat-number text-success">GH₵{{ "%.2f"|format(total_revenue) }}</div>
+            <div class="stat-number text-success" id="totalRevenue">GH₵{{ "%.2f"|format(total_revenue) }}</div>
             <h6 class="text-muted mb-0">Total Revenue</h6>
             <small class="text-success">
                 <i class="bi bi-cash-stack"></i> 
-                {% if total_customers > 0 %}
-                    Avg: GH₵{{ "%.2f"|format(total_revenue / total_customers) }} per customer
-                {% endif %}
+                <span id="avgPerCustomer">
+                    {% if total_customers > 0 %}
+                        Avg: GH₵{{ "%.2f"|format(total_revenue / total_customers) }} per customer
+                    {% else %}
+                        No customers served yet
+                    {% endif %}
+                </span>
             </small>
         </div>
     </div>
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 mb-3">
         <div class="stat-card border-info">
-            <div class="stat-number text-info">{{ total_customers }}</div>
+            <div class="stat-number text-info" id="totalCustomers">{{ total_customers }}</div>
             <h6 class="text-muted mb-0">Customers Served</h6>
             <small class="text-info">
                 <i class="bi bi-people"></i> Completed services
             </small>
         </div>
     </div>
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 mb-3">
         <div class="stat-card border-warning">
-            <div class="stat-number text-warning">
+            <div class="stat-number text-warning" id="activeBranches">
                 {% if current_user.is_master_admin() %}
                     {{ revenue_data|length }}
                 {% else %}
-                    {% if revenue_data %}{{ revenue_data[0].total_customers }}{% else %}0{% endif %}
+                    {% if revenue_data %}1{% else %}0{% endif %}
                 {% endif %}
             </div>
             <h6 class="text-muted mb-0">
                 {% if current_user.is_master_admin() %}
                     Active Branches
                 {% else %}
-                    Branch Total
+                    Revenue Status
                 {% endif %}
             </h6>
             <small class="text-warning">
@@ -96,6 +115,15 @@
             </small>
         </div>
     </div>
+    <div class="col-md-3 mb-3">
+        <div class="stat-card border-primary">
+            <div class="stat-number text-primary" id="currentTime">{{ now.strftime('%H:%M') }}</div>
+            <h6 class="text-muted mb-0">Current Time</h6>
+            <small class="text-primary">
+                <i class="bi bi-clock"></i> Live updates every 30s
+            </small>
+        </div>
+    </div>
 </div>
 
 <!-- Revenue Breakdown -->
@@ -103,7 +131,7 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <div class="barbers-flag"></div>
+                <div class="ghana-flag"></div>
                 <h4 class="mb-0 text-white">
                     <i class="bi bi-table"></i> 
                     {% if current_user.is_master_admin() %}
@@ -111,6 +139,9 @@
                     {% else %}
                         Branch Revenue Details
                     {% endif %}
+                    <span class="badge bg-light text-dark ms-2" id="autoRefresh">
+                        <i class="bi bi-arrow-repeat"></i> Auto-refresh: ON
+                    </span>
                 </h4>
             </div>
             <div class="card-body">
@@ -127,40 +158,42 @@
                                     <th><i class="bi bi-people"></i> Customers</th>
                                     <th><i class="bi bi-calculator"></i> Avg per Customer</th>
                                     <th><i class="bi bi-percent"></i> Contribution</th>
-                                    <th><i class="bi bi-clock"></i> Last Updated</th>
+                                    <th><i class="bi bi-clock"></i> Status</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="revenueTableBody">
                                 {% for record in revenue_data %}
-                                    <tr>
+                                    <tr data-branch="{{ record.branch if record.branch else record['branch'] }}">
                                         {% if current_user.is_master_admin() %}
                                             <td>
-                                                <strong>{{ branches_dict.get(record.branch, {}).get('name', record.branch) }}</strong>
+                                                <strong>{{ branches_dict.get(record.branch if record.branch else record['branch'], {}).get('name', record.branch if record.branch else record['branch']) }}</strong>
                                                 <br>
-                                                <small class="text-muted">{{ record.branch }}</small>
+                                                <small class="text-muted">{{ record.branch if record.branch else record['branch'] }}</small>
                                             </td>
                                             <td>
                                                 <small class="text-muted">
                                                     <i class="bi bi-geo-alt"></i> 
-                                                    {{ branches_dict.get(record.branch, {}).get('address', 'N/A') }}
+                                                    {{ branches_dict.get(record.branch if record.branch else record['branch'], {}).get('address', 'N/A') }}
                                                     <br>
                                                     <i class="bi bi-telephone"></i> 
-                                                    {{ branches_dict.get(record.branch, {}).get('phone', 'N/A') }}
+                                                    {{ branches_dict.get(record.branch if record.branch else record['branch'], {}).get('phone', 'N/A') }}
                                                 </small>
                                             </td>
                                         {% endif %}
                                         <td>
                                             <span class="revenue-badge">
-                                                GH₵{{ "%.2f"|format(record.total_revenue) }}
+                                                GH₵{{ "%.2f"|format(record.total_revenue if record.total_revenue else record['total_revenue']) }}
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="badge bg-info">{{ record.total_customers }}</span>
+                                            <span class="badge bg-info">{{ record.total_customers if record.total_customers else record['total_customers'] }}</span>
                                         </td>
                                         <td>
-                                            {% if record.total_customers > 0 %}
+                                            {% set customers = record.total_customers if record.total_customers else record['total_customers'] %}
+                                            {% set revenue = record.total_revenue if record.total_revenue else record['total_revenue'] %}
+                                            {% if customers > 0 %}
                                                 <span class="currency">
-                                                    GH₵{{ "%.2f"|format(record.total_revenue / record.total_customers) }}
+                                                    GH₵{{ "%.2f"|format(revenue / customers) }}
                                                 </span>
                                             {% else %}
                                                 <span class="text-muted">N/A</span>
@@ -169,7 +202,7 @@
                                         <td>
                                             {% if total_revenue > 0 %}
                                                 <div class="progress" style="height: 20px;">
-                                                    {% set percentage = (record.total_revenue / total_revenue * 100) %}
+                                                    {% set percentage = (revenue / total_revenue * 100) %}
                                                     <div class="progress-bar bg-success" 
                                                          style="width: {{ percentage }}%"
                                                          title="{{ "%.1f"|format(percentage) }}%">
@@ -181,8 +214,8 @@
                                             {% endif %}
                                         </td>
                                         <td>
-                                            <small class="text-muted">
-                                                {{ record.updated_at.strftime('%H:%M:%S') }}
+                                            <small class="text-success">
+                                                <i class="bi bi-check-circle"></i> Live
                                             </small>
                                         </td>
                                     </tr>
@@ -192,13 +225,13 @@
                                 <tfoot class="table-secondary">
                                     <tr>
                                         <td colspan="2"><strong>TOTAL</strong></td>
-                                        <td><strong class="text-success">GH₵{{ "%.2f"|format(total_revenue) }}</strong></td>
-                                        <td><strong class="text-info">{{ total_customers }}</strong></td>
+                                        <td><strong class="text-success" id="footerRevenue">GH₵{{ "%.2f"|format(total_revenue) }}</strong></td>
+                                        <td><strong class="text-info" id="footerCustomers">{{ total_customers }}</strong></td>
                                         <td>
                                             {% if total_customers > 0 %}
-                                                <strong class="currency">GH₵{{ "%.2f"|format(total_revenue / total_customers) }}</strong>
+                                                <strong class="currency" id="footerAvg">GH₵{{ "%.2f"|format(total_revenue / total_customers) }}</strong>
                                             {% else %}
-                                                <strong class="text-muted">N/A</strong>
+                                                <strong class="text-muted" id="footerAvg">N/A</strong>
                                             {% endif %}
                                         </td>
                                         <td><strong>100%</strong></td>
@@ -209,16 +242,23 @@
                         </table>
                     </div>
                 {% else %}
-                    <div class="text-center py-5">
+                    <div class="text-center py-5" id="noDataMessage">
                         <i class="bi bi-graph-down display-4 text-muted mb-3"></i>
                         <h5 class="text-muted">No Revenue Data</h5>
                         <p class="text-muted">
                             No completed services found for {{ report_date.strftime('%B %d, %Y') }}
                         </p>
-                        <a href="{{ url_for('add_customer', branch_code=current_user.branch if not current_user.is_master_admin() else 'main') }}" 
-                           class="btn btn-barbers">
-                            <i class="bi bi-person-plus"></i> Start Adding Customers
-                        </a>
+                        {% if report_date == today %}
+                            <div class="spinner-border text-primary me-2" role="status" id="loadingSpinner">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <span class="text-muted">Waiting for completed services...</span>
+                        {% else %}
+                            <a href="{{ url_for('add_customer', branch_code=current_user.branch if not current_user.is_master_admin() else 'main') }}" 
+                               class="btn btn-primary">
+                                <i class="bi bi-person-plus"></i> Start Adding Customers
+                            </a>
+                        {% endif %}
                     </div>
                 {% endif %}
             </div>
@@ -276,11 +316,11 @@
             <div class="card-body">
                 {% set top_branch = revenue_data | sort(attribute='total_revenue', reverse=true) | first %}
                 <div class="text-center">
-                    <h3 class="text-info">{{ branches_dict.get(top_branch.branch, {}).get('name', top_branch.branch) }}</h3>
-                    <p class="text-muted">{{ branches_dict.get(top_branch.branch, {}).get('address', '') }}</p>
-                    <div class="revenue-badge">GH₵{{ "%.2f"|format(top_branch.total_revenue) }}</div>
+                    <h3 class="text-info">{{ branches_dict.get(top_branch.branch if top_branch.branch else top_branch['branch'], {}).get('name', top_branch.branch if top_branch.branch else top_branch['branch']) }}</h3>
+                    <p class="text-muted">{{ branches_dict.get(top_branch.branch if top_branch.branch else top_branch['branch'], {}).get('address', '') }}</p>
+                    <div class="revenue-badge">GH₵{{ "%.2f"|format(top_branch.total_revenue if top_branch.total_revenue else top_branch['total_revenue']) }}</div>
                     <small class="text-muted d-block mt-2">
-                        {{ top_branch.total_customers }} customers served
+                        {{ top_branch.total_customers if top_branch.total_customers else top_branch['total_customers'] }} customers served
                     </small>
                 </div>
             </div>
@@ -325,6 +365,249 @@
 
 {% block scripts %}
 <script>
+// Real-time update variables
+let autoRefreshEnabled = {{ 'true' if report_date == today else 'false' }};
+let refreshInterval;
+const REFRESH_RATE = 30000; // 30 seconds
+
+// Initialize real-time features
+document.addEventListener('DOMContentLoaded', function() {
+    updateCurrentTime();
+    setInterval(updateCurrentTime, 1000); // Update every second
+    
+    if (autoRefreshEnabled) {
+        startAutoRefresh();
+    }
+    
+    // Add refresh button animation
+    setupRefreshButton();
+});
+
+function updateCurrentTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+    
+    const timeElement = document.getElementById('currentTime');
+    if (timeElement) {
+        timeElement.textContent = timeStr;
+    }
+    
+    const lastUpdatedElement = document.getElementById('lastUpdated');
+    if (lastUpdatedElement) {
+        lastUpdatedElement.textContent = timeStr;
+    }
+}
+
+function startAutoRefresh() {
+    refreshInterval = setInterval(refreshData, REFRESH_RATE);
+    document.getElementById('autoRefresh').innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Auto-refresh: ON';
+}
+
+function stopAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+    }
+    document.getElementById('autoRefresh').innerHTML = '<i class="bi bi-pause"></i> Auto-refresh: OFF';
+}
+
+function toggleAutoRefresh() {
+    if (autoRefreshEnabled) {
+        autoRefreshEnabled = false;
+        stopAutoRefresh();
+    } else {
+        autoRefreshEnabled = true;
+        startAutoRefresh();
+    }
+}
+
+function refreshData() {
+    const refreshBtn = document.getElementById('refreshBtn');
+    const originalText = refreshBtn.innerHTML;
+    
+    // Show loading state
+    refreshBtn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Refreshing...';
+    refreshBtn.disabled = true;
+    
+    // Determine API endpoint based on user role
+    const branchCode = '{{ current_user.branch if not current_user.is_master_admin() else "all" }}';
+    const apiUrl = '{{ current_user.is_master_admin()|tojson }}' === 'true' 
+        ? '/api/revenue/all' 
+        : `/api/revenue/${branchCode}`;
+    
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            updateRevenueDisplay(data);
+            showUpdateSuccess();
+        })
+        .catch(error => {
+            console.error('Error refreshing data:', error);
+            showUpdateError();
+        })
+        .finally(() => {
+            // Restore button
+            setTimeout(() => {
+                refreshBtn.innerHTML = originalText;
+                refreshBtn.disabled = false;
+            }, 1000);
+        });
+}
+
+function updateRevenueDisplay(data) {
+    {% if current_user.is_master_admin() %}
+        // Master admin - update all branches
+        if (data.totals) {
+            document.getElementById('totalRevenue').textContent = `GH₵${data.totals.total_revenue.toFixed(2)}`;
+            document.getElementById('totalCustomers').textContent = data.totals.total_customers;
+            document.getElementById('activeBranches').textContent = data.branches.filter(b => b.total_revenue > 0).length;
+            
+            if (data.totals.total_customers > 0) {
+                const avgPerCustomer = data.totals.total_revenue / data.totals.total_customers;
+                document.getElementById('avgPerCustomer').textContent = `Avg: GH₵${avgPerCustomer.toFixed(2)} per customer`;
+            }
+            
+            // Update footer
+            const footerRevenue = document.getElementById('footerRevenue');
+            const footerCustomers = document.getElementById('footerCustomers');
+            const footerAvg = document.getElementById('footerAvg');
+            
+            if (footerRevenue) footerRevenue.textContent = `GH₵${data.totals.total_revenue.toFixed(2)}`;
+            if (footerCustomers) footerCustomers.textContent = data.totals.total_customers;
+            
+            if (footerAvg && data.totals.total_customers > 0) {
+                const footerAvgValue = data.totals.total_revenue / data.totals.total_customers;
+                footerAvg.textContent = `GH₵${footerAvgValue.toFixed(2)}`;
+            }
+            
+            updateBranchRows(data.branches, data.totals.total_revenue);
+        }
+    {% else %}
+        // Branch admin - update single branch
+        document.getElementById('totalRevenue').textContent = `GH₵${data.total_revenue.toFixed(2)}`;
+        document.getElementById('totalCustomers').textContent = data.total_customers;
+        
+        if (data.total_customers > 0) {
+            const avgPerCustomer = data.total_revenue / data.total_customers;
+            document.getElementById('avgPerCustomer').textContent = `Avg: GH₵${avgPerCustomer.toFixed(2)} per customer`;
+        }
+        
+        // Update table row if exists
+        const branchRow = document.querySelector(`tr[data-branch="${data.branch}"]`);
+        if (branchRow) {
+            const cells = branchRow.querySelectorAll('td');
+            if (cells.length >= 4) {
+                const revenueBadge = cells[0].querySelector('.revenue-badge');
+                const customerBadge = cells[1].querySelector('.badge');
+                
+                if (revenueBadge) revenueBadge.textContent = `GH₵${data.total_revenue.toFixed(2)}`;
+                if (customerBadge) customerBadge.textContent = data.total_customers;
+                
+                if (data.total_customers > 0) {
+                    const avgCell = cells[2].querySelector('.currency');
+                    if (avgCell) {
+                        avgCell.textContent = `GH₵${(data.total_revenue / data.total_customers).toFixed(2)}`;
+                    }
+                }
+            }
+        }
+    {% endif %}
+    
+    // Hide no data message if data exists
+    if ((data.total_revenue && data.total_revenue > 0) || (data.totals && data.totals.total_revenue > 0)) {
+        const noDataMsg = document.getElementById('noDataMessage');
+        if (noDataMsg) {
+            noDataMsg.style.display = 'none';
+        }
+        
+        const tableContainer = document.querySelector('.table-responsive');
+        if (tableContainer) {
+            tableContainer.style.display = 'block';
+        }
+    }
+}
+
+function updateBranchRows(branches, totalRevenue) {
+    branches.forEach(branch => {
+        const row = document.querySelector(`tr[data-branch="${branch.branch}"]`);
+        if (row) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 6) {
+                // Update revenue
+                const revenueBadge = cells[2].querySelector('.revenue-badge');
+                if (revenueBadge) revenueBadge.textContent = `GH₵${branch.total_revenue.toFixed(2)}`;
+                
+                // Update customers
+                const customerBadge = cells[3].querySelector('.badge');
+                if (customerBadge) customerBadge.textContent = branch.total_customers;
+                
+                // Update average
+                if (branch.total_customers > 0) {
+                    const avgCell = cells[4].querySelector('.currency');
+                    if (avgCell) {
+                        avgCell.textContent = `GH₵${(branch.total_revenue / branch.total_customers).toFixed(2)}`;
+                    }
+                } else {
+                    const avgCell = cells[4];
+                    avgCell.innerHTML = '<span class="text-muted">N/A</span>';
+                }
+                
+                // Update percentage
+                if (totalRevenue > 0) {
+                    const percentage = (branch.total_revenue / totalRevenue * 100);
+                    const progressBar = cells[5].querySelector('.progress-bar');
+                    if (progressBar) {
+                        progressBar.style.width = `${percentage}%`;
+                        progressBar.textContent = `${percentage.toFixed(1)}%`;
+                        progressBar.title = `${percentage.toFixed(1)}%`;
+                    }
+                }
+            }
+        }
+    });
+}
+
+function showUpdateSuccess() {
+    const indicator = document.getElementById('liveIndicator');
+    indicator.classList.add('pulse-success');
+    setTimeout(() => indicator.classList.remove('pulse-success'), 1000);
+    
+    // Show a subtle flash on updated values
+    document.querySelectorAll('.stat-number').forEach(el => {
+        el.classList.add('flash-update');
+        setTimeout(() => el.classList.remove('flash-update'), 500);
+    });
+}
+
+function showUpdateError() {
+    const indicator = document.getElementById('liveIndicator');
+    indicator.innerHTML = '<i class="bi bi-exclamation-triangle"></i> ERROR';
+    indicator.classList.add('bg-danger');
+    
+    setTimeout(() => {
+        indicator.innerHTML = '<i class="bi bi-circle-fill blink"></i> LIVE';
+        indicator.classList.remove('bg-danger');
+    }, 3000);
+}
+
+function setupRefreshButton() {
+    const refreshBtn = document.getElementById('refreshBtn');
+    const autoRefreshBtn = document.getElementById('autoRefresh');
+    
+    if (autoRefreshBtn) {
+        autoRefreshBtn.style.cursor = 'pointer';
+        autoRefreshBtn.addEventListener('click', toggleAutoRefresh);
+    }
+}
+
 // Export to CSV functionality
 function exportToCSV() {
     const table = document.getElementById('revenueTable');
@@ -358,7 +641,8 @@ function exportToCSV() {
     const a = document.createElement('a');
     
     const date = '{{ report_date.isoformat() }}';
-    const filename = `revenue-report-${date}.csv`;
+    const timestamp = new Date().toISOString().slice(11, 19).replace(/:/g, '');
+    const filename = `revenue-report-${date}-${timestamp}.csv`;
     
     a.setAttribute('hidden', '');
     a.setAttribute('href', url);
@@ -369,55 +653,18 @@ function exportToCSV() {
     window.URL.revokeObjectURL(url);
 }
 
-// Print-specific styles
-const printStyles = `
-    @media print {
-        .btn, .card-header, .navbar, .quick-actions { display: none !important; }
-        .card { border: 1px solid #000 !important; box-shadow: none !important; }
-        .table { font-size: 12px; }
-        .stat-card { border: 1px solid #000; margin-bottom: 10px; }
-        body { background: white !important; }
-        .revenue-badge { background: #000 !important; color: white !important; }
-    }
-`;
-
-// Add print styles to head
-const styleSheet = document.createElement('style');
-styleSheet.textContent = printStyles;
-document.head.appendChild(styleSheet);
-
-// Auto-refresh every 5 minutes
-setInterval(() => {
-    const currentDate = new URLSearchParams(window.location.search).get('date');
-    const today = new Date().toISOString().split('T')[0];
-    
-    // Only auto-refresh if viewing today's data
-    if (!currentDate || currentDate === today) {
-        window.location.reload();
-    }
-}, 300000); // 5 minutes
-
-// Enhance progress bars with animation
-document.addEventListener('DOMContentLoaded', function() {
-    const progressBars = document.querySelectorAll('.progress-bar');
-    
-    progressBars.forEach((bar, index) => {
-        const width = bar.style.width;
-        bar.style.width = '0%';
-        
-        setTimeout(() => {
-            bar.style.transition = 'width 1s ease-in-out';
-            bar.style.width = width;
-        }, index * 200);
-    });
-});
-
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
-    // Alt + P: Print
-    if (e.altKey && e.key === 'p') {
+    // Ctrl/Cmd + R: Manual refresh (prevent default browser refresh)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
         e.preventDefault();
-        window.print();
+        refreshData();
+    }
+    
+    // Alt + A: Toggle auto-refresh
+    if (e.altKey && e.key === 'a') {
+        e.preventDefault();
+        toggleAutoRefresh();
     }
     
     // Alt + E: Export CSV
@@ -426,22 +673,112 @@ document.addEventListener('keydown', function(e) {
         exportToCSV();
     }
     
-    // Alt + T: Go to today
-    if (e.altKey && e.key === 't') {
+    // Alt + P: Print
+    if (e.altKey && e.key === 'p') {
         e.preventDefault();
-        window.location.href = '?date={{ today.strftime("%Y-%m-%d") }}';
+        window.print();
     }
 });
 
-// Tooltip for progress bars
-document.querySelectorAll('.progress-bar').forEach(bar => {
-    new bootstrap.Tooltip(bar, {
-        placement: 'top'
-    });
+// Page visibility API - pause auto-refresh when tab is not visible
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        if (autoRefreshEnabled) {
+            stopAutoRefresh();
+        }
+    } else {
+        if (autoRefreshEnabled) {
+            startAutoRefresh();
+            // Immediate refresh when tab becomes visible
+            refreshData();
+        }
+    }
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+    }
 });
 </script>
 
 <style>
+/* Real-time specific styles */
+.blink {
+    animation: blink 2s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.pulse-success {
+    animation: pulseSuccess 1s ease-in-out;
+}
+
+@keyframes pulseSuccess {
+    0% { background-color: inherit; }
+    50% { background-color: #198754; }
+    100% { background-color: inherit; }
+}
+
+.flash-update {
+    animation: flashUpdate 0.5s ease-in-out;
+}
+
+@keyframes flashUpdate {
+    0% { transform: scale(1); color: inherit; }
+    50% { transform: scale(1.05); color: #198754; }
+    100% { transform: scale(1); color: inherit; }
+}
+
+/* Enhanced progress bars with animation */
+.progress-bar {
+    transition: width 0.8s ease-in-out;
+}
+
+/* Loading spinner for real-time updates */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Revenue badge with pulse effect */
+.revenue-badge {
+    background: linear-gradient(135deg, #198754 0%, #20c997 100%);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.revenue-badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(25, 135, 84, 0.3);
+}
+
+/* Auto-refresh indicator */
+#autoRefresh {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+#autoRefresh:hover {
+    transform: scale(1.05);
+}
+
 /* Custom styles for revenue report */
 .revenue-table {
     font-family: 'Poppins', sans-serif;
@@ -471,25 +808,40 @@ document.querySelectorAll('.progress-bar').forEach(bar => {
 }
 
 .table-hover tbody tr:hover {
-    background-color: rgba(139, 0, 0, 0.05);
+    background-color: rgba(37, 99, 235, 0.05);
 }
 
 .revenue-highlight {
-    background: linear-gradient(135deg, rgba(139, 0, 0, 0.1) 0%, rgba(220, 20, 60, 0.1) 100%);
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
     padding: 0.5rem;
     border-radius: 8px;
     border-left: 4px solid var(--primary-color);
 }
 
-/* Print styles */
+/* Print styles for real-time report */
 @media print {
-    .no-print {
+    .no-print, .btn-group, #liveIndicator, #autoRefresh {
         display: none !important;
+    }
+    
+    .btn, .badge:not(.bg-info):not(.bg-success):not(.bg-warning) {
+        display: none !important;
+    }
+    
+    .progress {
+        border: 1px solid #000 !important;
+    }
+    
+    .progress-bar {
+        background-color: #000 !important;
+        color: white !important;
     }
     
     .card {
         break-inside: avoid;
         margin-bottom: 1rem;
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
     }
     
     .table {
@@ -500,20 +852,37 @@ document.querySelectorAll('.progress-bar').forEach(bar => {
         border: 2px solid #000;
         margin-bottom: 1rem;
     }
+    
+    .revenue-badge {
+        background: #000 !important;
+        color: white !important;
+    }
+    
+    body {
+        background: white !important;
+    }
 }
 
-/* Mobile responsiveness */
+/* Mobile responsiveness for real-time features */
 @media (max-width: 768px) {
-    .table-responsive {
-        font-size: 0.875rem;
+    #liveIndicator {
+        font-size: 0.8rem;
     }
     
     .stat-number {
-        font-size: 2rem !important;
+        font-size: 1.5rem !important;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+        gap: 0.5rem;
     }
     
     .btn-group .btn {
-        padding: 0.375rem 0.5rem;
+        width: 100%;
+    }
+    
+    .table-responsive {
         font-size: 0.875rem;
     }
     
@@ -524,6 +893,86 @@ document.querySelectorAll('.progress-bar').forEach(bar => {
     .progress-bar {
         font-size: 0.7rem;
     }
+    
+    .revenue-badge {
+        font-size: 0.8rem;
+        padding: 0.2rem 0.5rem;
+    }
+}
+
+/* Loading states */
+.btn.loading {
+    position: relative;
+    color: transparent;
+}
+
+.btn.loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin-left: -8px;
+    margin-top: -8px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 1s ease-in-out infinite;
+}
+
+/* Enhanced table styling */
+.table-dark th {
+    background: linear-gradient(135deg, var(--ghana-green) 0%, var(--primary-color) 100%) !important;
+}
+
+.table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.table tbody tr:hover {
+    transform: translateX(2px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Revenue status indicators */
+.status-live {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Custom scrollbar for table */
+.table-responsive::-webkit-scrollbar {
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 10px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: var(--ghana-green);
+}
+
+/* Tooltip styling */
+.tooltip-inner {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.tooltip.bs-tooltip-top .tooltip-arrow::before {
+    border-top-color: var(--primary-color);
 }
 </style>
 {% endblock %}
