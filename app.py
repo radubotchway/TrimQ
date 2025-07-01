@@ -9,6 +9,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import secrets
 import os
+from datetime import datetime, timedelta, date
+from sqlalchemy import func, and_
 
 load_dotenv()  # Load environment variables from .env file
 
@@ -105,6 +107,17 @@ class PasswordReset(db.Model):
     
     def is_valid(self):
         return not self.used and not self.is_expired()
+    
+class DailyRevenue(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    branch = db.Column(db.String(100), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=date.today)
+    total_revenue = db.Column(db.Float, default=0.0)
+    total_customers = db.Column(db.Integer, default=0)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint('branch', 'date', name='unique_branch_date'),)
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -313,6 +326,47 @@ def get_branch_stats(branch_code):
         'active_barbers': active_barbers
     }
 
+def update_daily_revenue(branch_code, revenue_amount, increment_customers=True):
+    """Update daily revenue for a branch"""
+    today = date.today()
+    
+    # Get or create daily revenue record
+    daily_revenue = DailyRevenue.query.filter_by(branch=branch_code, date=today).first()
+    
+    if not daily_revenue:
+        daily_revenue = DailyRevenue(
+            branch=branch_code,
+            date=today,
+            total_revenue=revenue_amount,
+            total_customers=1 if increment_customers else 0
+        )
+        db.session.add(daily_revenue)
+    else:
+        daily_revenue.total_revenue += revenue_amount
+        if increment_customers:
+            daily_revenue.total_customers += 1
+        daily_revenue.updated_at = datetime.utcnow()
+    
+    db.session.commit()
+    return daily_revenue
+
+def get_daily_revenue_report(target_date=None, branch_code=None):
+    """Get daily revenue report for a specific date and optionally branch"""
+    if not target_date:
+        target_date = date.today()
+    
+    query = DailyRevenue.query.filter_by(date=target_date)
+    
+    if branch_code:
+        query = query.filter_by(branch=branch_code)
+    
+    return query.order_by(DailyRevenue.total_revenue.desc()).all()
+
+def generate_ticket_number(customer_id, branch_code):
+    """Generate a unique ticket number"""
+    today = datetime.now()
+    return f"{branch_code.upper()}-{today.strftime('%m%d')}-{customer_id:04d}"
+
 @app.context_processor
 def inject_helpers():
     return {
@@ -470,8 +524,15 @@ def add_customer(branch_code=None):
         )
         db.session.add(customer)
         db.session.commit()
-        flash(f'{customer.name} added to queue!', 'success')
-        return redirect(url_for('queue_manage', branch_code=branch_code))
+        
+        # Check if user wants to print ticket
+        print_ticket_option = request.form.get('print_ticket')
+        if print_ticket_option:
+            flash(f'{customer.name} added to queue!', 'success')
+            return redirect(url_for('print_ticket', customer_id=customer.id))
+        else:
+            flash(f'{customer.name} added to queue!', 'success')
+            return redirect(url_for('queue_manage', branch_code=branch_code))
     
     branches_dict = get_branches_dict()
     return render_template('add_customer.html', 
@@ -520,6 +581,11 @@ def complete_customer(customer_id):
     customer = Customer.query.get_or_404(customer_id)
     customer.status = 'completed'
     customer.completed_at = datetime.utcnow()
+    
+    # Update daily revenue when service is completed
+    service_price = customer.service.price if customer.service else 0
+    update_daily_revenue(customer.branch, service_price, increment_customers=True)
+    
     db.session.commit()
     flash(f'{customer.name} service completed!', 'success')
     return redirect(url_for('queue_manage', branch_code=customer.branch))
@@ -869,6 +935,94 @@ def edit_branch(branch_id):
     
     return redirect(url_for('settings'))
 
+@app.route('/ticket/<int:customer_id>')
+@login_required
+def print_ticket(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    
+    if not current_user.is_master_admin() and current_user.branch != customer.branch:
+        flash('Access denied.', 'error')
+        return redirect(url_for('index'))
+    
+    # Generate ticket details
+    ticket_number = generate_ticket_number(customer.id, customer.branch)
+    queue_position = Customer.query.filter(
+        Customer.branch == customer.branch,
+        Customer.status == 'waiting',
+        Customer.created_at <= customer.created_at
+    ).count()
+    
+    estimated_wait = get_wait_time(customer)
+    branches_dict = get_branches_dict()
+    
+    return render_template('ticket.html', 
+                         customer=customer,
+                         ticket_number=ticket_number,
+                         queue_position=queue_position,
+                         estimated_wait=estimated_wait,
+                         branch_info=branches_dict.get(customer.branch, {}))
+
+@app.route('/revenue-report')
+@login_required
+def revenue_report():
+    # Get date from query parameter, default to today
+    report_date_str = request.args.get('date')
+    if report_date_str:
+        try:
+            report_date = datetime.strptime(report_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            report_date = date.today()
+    else:
+        report_date = date.today()
+    
+    # Get revenue data based on user role
+    if current_user.is_master_admin():
+        revenue_data = get_daily_revenue_report(report_date)
+        branches_dict = get_branches_dict()
+    else:
+        revenue_data = get_daily_revenue_report(report_date, current_user.branch)
+        branches_dict = get_branches_dict()
+    
+    # Calculate totals
+    total_revenue = sum(r.total_revenue for r in revenue_data)
+    total_customers = sum(r.total_customers for r in revenue_data)
+    
+    return render_template('revenue_report.html',
+                         revenue_data=revenue_data,
+                         report_date=report_date,
+                         total_revenue=total_revenue,
+                         total_customers=total_customers,
+                         today=date.today(),
+                         timedelta=timedelta,
+                         branches_dict=branches_dict)
+
+@app.route('/api/revenue/<branch_code>')
+@login_required
+def api_branch_revenue(branch_code):
+    """API endpoint to get real-time revenue for a branch"""
+    if not current_user.is_master_admin() and current_user.branch != branch_code:
+        return {'error': 'Access denied'}, 403
+    
+    today = date.today()
+    revenue_record = DailyRevenue.query.filter_by(branch=branch_code, date=today).first()
+    
+    if revenue_record:
+        return {
+            'branch': branch_code,
+            'date': today.isoformat(),
+            'total_revenue': revenue_record.total_revenue,
+            'total_customers': revenue_record.total_customers,
+            'last_updated': revenue_record.updated_at.isoformat()
+        }
+    else:
+        return {
+            'branch': branch_code,
+            'date': today.isoformat(),
+            'total_revenue': 0.0,
+            'total_customers': 0,
+            'last_updated': None
+        }
+
 # ============================================================================
 # UTILITY FUNCTIONS FOR MAINTENANCE
 # ============================================================================
@@ -953,6 +1107,31 @@ def create_sample_data():
         {'name': 'Isaac Adjei', 'branch': 'uptown'},
         {'name': 'Prince Agyemang', 'branch': 'uptown'}
     ]
+
+    # Create sample daily revenue for today (for demonstration)
+    today = date.today()
+    sample_revenue_data = [
+        {'branch': 'main', 'revenue': 450.00, 'customers': 9},
+        {'branch': 'downtown', 'revenue': 320.00, 'customers': 7},
+        {'branch': 'uptown', 'revenue': 280.00, 'customers': 6}
+    ]
+    for data in sample_revenue_data:
+        existing = DailyRevenue.query.filter_by(branch=data['branch'], date=today).first()
+        if not existing:
+            revenue_record = DailyRevenue(
+                branch=data['branch'],
+                date=today,
+                total_revenue=data['revenue'],
+                total_customers=data['customers']
+            )
+            db.session.add(revenue_record)
+    
+    try:
+        db.session.commit()
+        print("✅ Sample revenue data created/updated successfully!")
+    except Exception as e:
+        print(f"Error creating sample revenue data: {e}")
+        db.session.rollback()
     
     for barber_data in barbers_data:
         if not Barber.query.filter_by(name=barber_data['name'], branch=barber_data['branch']).first():
@@ -1020,9 +1199,10 @@ if __name__ == '__main__':
         print("🏪 Main Branch: main_admin / main123")
         print("🏪 Downtown Branch: downtown_admin / downtown123") 
         print("🏪 East Legon Branch: uptown_admin / uptown123")
-        print("\n📧 Email Setup:")
-        print("📌 Configure MAIL_USERNAME and MAIL_PASSWORD in app.py for password reset emails")
-        print("📌 All demo accounts have email addresses set up for testing")
+        print("\n💰 New Features:")
+        print("🎫 Ticket Generation: Available when adding customers")
+        print("📊 Revenue Reports: /revenue-report endpoint")
+        print("💵 Daily Revenue Tracking: Automatic when completing services")
         print("\n🌐 Access: http://127.0.0.1:5000")
     
     app.run(debug=True)
