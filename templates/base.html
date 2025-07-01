@@ -35,15 +35,17 @@
             background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
             min-height: 100vh;
             color: var(--text-dark);
+            position: relative;
         }
 
+        /* SIMPLIFIED Z-INDEX HIERARCHY - KEY FIX: Like your working simplified version */
         .navbar {
             background: linear-gradient(135deg, var(--ghana-green) 0%, var(--primary-color) 100%);
             backdrop-filter: blur(10px);
             box-shadow: var(--shadow-lg);
             padding: 1rem 0;
             position: relative;
-            z-index: 1030;
+            z-index: 1030; /* Bootstrap default - keep simple */
         }
 
         .navbar-brand {
@@ -75,20 +77,17 @@
             transform: translateY(-1px);
         }
 
-        /* Fix dropdown z-index and positioning */
+        /* SIMPLIFIED Dropdown positioning - no complex z-index conflicts */
         .dropdown {
             position: relative;
         }
 
         .dropdown-menu {
-            z-index: 1040;
+            z-index: 1040; /* Simple, standard Bootstrap z-index */
             border: none;
             box-shadow: var(--shadow-lg);
             border-radius: 12px;
             margin-top: 0.5rem !important;
-            position: absolute !important;
-            top: 100% !important;
-            left: 0 !important;
             background: white;
             min-width: 200px;
         }
@@ -108,6 +107,7 @@
             margin-right: 0.5rem;
         }
 
+        /* SIMPLIFIED Main content - basic layer structure */
         .card {
             border: none;
             border-radius: var(--border-radius);
@@ -115,7 +115,7 @@
             transition: all 0.3s ease;
             background: white;
             position: relative;
-            z-index: 1;
+            z-index: 1; /* Simple base layer */
         }
 
         .card:hover {
@@ -200,12 +200,15 @@
             background: white;
         }
 
+        /* SIMPLIFIED Alert system - clean z-index */
         .alert {
             border: none;
             border-radius: 12px;
             padding: 1rem 1.5rem;
             margin-bottom: 1.5rem;
             font-weight: 500;
+            position: relative;
+            z-index: 1010; /* Above content but below modals */
         }
 
         .stat-card {
@@ -215,6 +218,8 @@
             border-radius: var(--border-radius);
             box-shadow: var(--shadow);
             transition: all 0.3s ease;
+            position: relative;
+            z-index: 1;
         }
 
         .stat-card:hover {
@@ -236,6 +241,7 @@
             margin-bottom: 3rem;
             position: relative;
             overflow: hidden;
+            z-index: 1;
         }
 
         .quick-action {
@@ -248,6 +254,8 @@
             text-decoration: none;
             color: var(--text-dark);
             display: block;
+            position: relative;
+            z-index: 1;
         }
 
         .quick-action:hover {
@@ -271,6 +279,8 @@
             box-shadow: var(--shadow);
             transition: all 0.3s ease;
             border-left: 4px solid var(--primary-color);
+            position: relative;
+            z-index: 1;
         }
 
         .branch-card:hover {
@@ -290,18 +300,23 @@
             font-weight: 600;
         }
 
-        /* Ensure main content is below navbar */
+        /* CRITICAL: SIMPLIFIED Modal z-index management - like your working version */
+        .modal {
+            z-index: 1055; /* Simple, clean z-index */
+        }
+
+        .modal-backdrop {
+            z-index: 1050; /* Standard Bootstrap backdrop */
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        /* Remove overly complex z-index rules that cause conflicts */
         .container {
             position: relative;
-            z-index: 10;
+            /* Removed conflicting z-index */
         }
 
-        /* Fix for navbar overlap */
-        .hero-section, .card, .quick-action {
-            position: relative;
-            z-index: 1;
-        }
-
+        /* Responsive design */
         @media (max-width: 768px) {
             .container {
                 padding: 0 1rem;
@@ -321,7 +336,92 @@
                 box-shadow: none;
                 border: 1px solid #dee2e6;
                 margin-top: 0 !important;
+                z-index: 1040;
             }
+
+            .navbar-collapse {
+                background-color: rgba(0, 0, 0, 0.9);
+                padding: 1rem;
+                border-radius: var(--border-radius);
+                margin-top: 1rem;
+            }
+        }
+
+        /* SIMPLIFIED: Prevent body scroll when modal is open */
+        body.modal-open {
+            overflow: hidden;
+        }
+
+        /* SIMPLIFIED: Focus management */
+        .modal:focus {
+            outline: none;
+        }
+
+        /* SIMPLIFIED: Accessibility enhancements */
+        .btn:focus-visible,
+        .form-control:focus-visible,
+        .form-select:focus-visible {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        /* Custom focus styles */
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--ghana-green);
+            box-shadow: 0 0 0 0.2rem rgba(0, 107, 60, 0.25);
+        }
+
+        /* Success states */
+        .border-success {
+            border-color: #198754 !important;
+            border-width: 2px !important;
+        }
+
+        .bg-success {
+            background: linear-gradient(135deg, #198754 0%, #20c997 100%) !important;
+        }
+
+        /* Badge styling */
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.35em 0.65em;
+        }
+
+        /* Enhanced button groups */
+        .btn-group .btn {
+            border-radius: 6px !important;
+            margin: 0 2px;
+        }
+
+        /* Success indicators */
+        .text-success {
+            color: var(--ghana-green) !important;
+        }
+
+        .border-left-success {
+            border-left: 4px solid var(--ghana-green) !important;
+        }
+
+        /* Input group enhancements */
+        .input-group-text {
+            background: linear-gradient(135deg, var(--ghana-green) 0%, var(--ghana-gold) 100%);
+            color: white;
+            border: none;
+            font-weight: 600;
+        }
+
+        /* Enhanced transitions */
+        * {
+            transition: all 0.2s ease;
+        }
+
+        button,
+        .btn,
+        input,
+        select,
+        textarea {
+            transition: all 0.3s ease;
         }
     </style>
     {% block extra_css %}{% endblock %}
