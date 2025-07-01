@@ -423,6 +423,56 @@ def generate_ticket_number(customer_id, branch_code):
     today = datetime.now()
     return f"{branch_code.upper()}-{today.strftime('%m%d')}-{customer_id:04d}"
 
+def can_remove_customer(customer):
+    """Check if a customer can be removed from the queue"""
+    if customer.status == 'completed':
+        return False, "Cannot remove completed customers"
+    
+    if customer.status == 'assigned':
+        # Allow cancellation of assigned customers (move back to waiting)
+        return True, "Customer will be moved back to waiting queue"
+    
+    if customer.status == 'waiting':
+        return True, "Customer will be removed from queue"
+    
+    return False, f"Cannot remove customer with status: {customer.status}"
+
+def get_queue_statistics(branch_code):
+    """Get comprehensive queue statistics for a branch"""
+    stats = {
+        'waiting': Customer.query.filter_by(branch=branch_code, status='waiting').count(),
+        'in_progress': Customer.query.filter_by(branch=branch_code, status='assigned').count(),
+        'completed_today': Customer.query.filter(
+            Customer.branch == branch_code,
+            Customer.status == 'completed',
+            Customer.completed_at >= datetime.now().replace(hour=0, minute=0, second=0)
+        ).count(),
+        'total_customers': Customer.query.filter_by(branch=branch_code).count(),
+        'active_barbers': Barber.query.filter_by(branch=branch_code, is_active=True).count()
+    }
+    
+    # Calculate average wait time
+    waiting_customers = Customer.query.filter_by(branch=branch_code, status='waiting').order_by(Customer.created_at).all()
+    
+    if waiting_customers:
+        total_wait_time = 0
+        for customer in waiting_customers:
+            wait_minutes = (datetime.utcnow() - customer.created_at).total_seconds() / 60
+            total_wait_time += wait_minutes
+        
+        stats['avg_wait_time'] = total_wait_time / len(waiting_customers)
+    else:
+        stats['avg_wait_time'] = 0
+    
+    return stats
+
+def log_customer_action(customer_id, action, user_id, details=None):
+    """Log customer management actions for audit purposes"""
+    # This could be expanded to include a CustomerLog model for audit trails
+    print(f"Customer Action Log: User {user_id} performed '{action}' on Customer {customer_id}")
+    if details:
+        print(f"Details: {details}")
+
 @app.context_processor
 def inject_helpers():
     return {
@@ -603,7 +653,31 @@ def add_customer(branch_code=None):
         return redirect(url_for('index'))
     
     form = CustomerForm()
+    
+    # Pre-fill form with query parameters if provided (for quick re-adding)
+    if request.method == 'GET':
+        phone = request.args.get('phone', '')
+        name = request.args.get('name', '')
+        if phone:
+            form.phone.data = phone
+        if name:
+            form.name.data = name
+    
     if form.validate_on_submit():
+        # Check for duplicate customers (same phone number in waiting status)
+        existing_customer = Customer.query.filter_by(
+            phone=form.phone.data,
+            branch=branch_code,
+            status='waiting'
+        ).first()
+        
+        if existing_customer:
+            flash(f'Customer with phone {form.phone.data} is already in the waiting queue as "{existing_customer.name}".', 'warning')
+            return render_template('add_customer.html', 
+                                 form=form, 
+                                 branch_code=branch_code, 
+                                 branch_info=get_branches_dict().get(branch_code, {}))
+        
         customer = Customer(
             name=form.name.data,
             phone=form.phone.data,
@@ -614,13 +688,25 @@ def add_customer(branch_code=None):
         db.session.add(customer)
         db.session.commit()
         
+        # Log the action
+        log_customer_action(customer.id, 'added', current_user.id, {
+            'name': customer.name,
+            'phone': customer.phone,
+            'service': customer.service.name,
+            'branch': branch_code
+        })
+        
         print_ticket_option = request.form.get('print_ticket')
         if print_ticket_option:
             flash(f'{customer.name} added to queue!', 'success')
             return redirect(url_for('print_ticket', customer_id=customer.id))
         else:
             flash(f'{customer.name} added to queue!', 'success')
-            return redirect(url_for('queue_manage', branch_code=branch_code))
+            # Redirect back to add customer page with success parameters for undo functionality
+            return redirect(url_for('add_customer', 
+                                  branch_code=branch_code, 
+                                  customer_added='true', 
+                                  customer_id=customer.id))
     
     branches_dict = get_branches_dict()
     return render_template('add_customer.html', 
@@ -1169,6 +1255,147 @@ def edit_branch(branch_id):
     
     return redirect(url_for('settings'))
 
+@app.route('/remove/<int:customer_id>')
+@login_required
+def remove_customer(customer_id):
+    """Remove a customer from the queue (for waiting customers only)"""
+    customer = Customer.query.get_or_404(customer_id)
+    
+    # Check if user has permission to manage this branch
+    if not current_user.is_master_admin() and current_user.branch != customer.branch:
+        flash('Access denied.', 'error')
+        return redirect(url_for('index'))
+    
+    # Only allow removal of waiting customers (not in progress or completed)
+    if customer.status != 'waiting':
+        flash(f'Cannot remove {customer.name} - customer is already {customer.status}.', 'error')
+        return redirect(url_for('queue_manage', branch_code=customer.branch))
+    
+    # Store customer info for the flash message
+    customer_name = customer.name
+    customer_branch = customer.branch
+    
+    # Delete the customer record
+    db.session.delete(customer)
+    db.session.commit()
+    
+    flash(f'{customer_name} has been removed from the queue.', 'success')
+    return redirect(url_for('queue_manage', branch_code=customer_branch))
+
+@app.route('/cancel/<int:customer_id>')
+@login_required
+def cancel_customer(customer_id):
+    """Cancel a customer service (for in-progress customers)"""
+    customer = Customer.query.get_or_404(customer_id)
+    
+    # Check if user has permission to manage this branch
+    if not current_user.is_master_admin() and current_user.branch != customer.branch:
+        flash('Access denied.', 'error')
+        return redirect(url_for('index'))
+    
+    # Only allow cancellation of assigned customers
+    if customer.status != 'assigned':
+        flash(f'Cannot cancel {customer.name} - customer is {customer.status}.', 'error')
+        return redirect(url_for('queue_manage', branch_code=customer.branch))
+    
+    # Reset customer back to waiting status
+    customer.status = 'waiting'
+    customer.barber_id = None
+    customer.assigned_at = None
+    db.session.commit()
+    
+    flash(f'{customer.name} has been moved back to waiting queue.', 'info')
+    return redirect(url_for('queue_manage', branch_code=customer.branch))
+
+@app.route('/api/remove_customer/<int:customer_id>', methods=['DELETE'])
+@login_required
+def api_remove_customer(customer_id):
+    """API endpoint to remove a customer (for AJAX calls)"""
+    try:
+        customer = Customer.query.get_or_404(customer_id)
+        
+        # Check permissions
+        if not current_user.is_master_admin() and current_user.branch != customer.branch:
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
+        
+        # Check if customer can be removed
+        if customer.status not in ['waiting', 'assigned']:
+            return jsonify({
+                'success': False, 
+                'message': f'Cannot remove {customer.name} - customer service is {customer.status}'
+            }), 400
+        
+        customer_name = customer.name
+        db.session.delete(customer)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'{customer_name} has been removed from the queue'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'message': f'Error removing customer: {str(e)}'
+        }), 500
+
+@app.route('/api/check_duplicate/<branch_code>')
+@login_required
+def check_duplicate_customer(branch_code):
+    """Check if a customer with given phone number already exists in queue"""
+    phone = request.args.get('phone', '')
+    
+    if not phone:
+        return jsonify({'exists': False})
+    
+    if not current_user.is_master_admin() and current_user.branch != branch_code:
+        return jsonify({'error': 'Access denied'}), 403
+    
+    existing_customer = Customer.query.filter_by(
+        phone=phone,
+        branch=branch_code,
+        status='waiting'
+    ).first()
+    
+    if existing_customer:
+        return jsonify({
+            'exists': True,
+            'customer': {
+                'id': existing_customer.id,
+                'name': existing_customer.name,
+                'phone': existing_customer.phone,
+                'service': existing_customer.service.name,
+                'created_at': existing_customer.created_at.strftime('%H:%M'),
+                'wait_time': get_wait_time(existing_customer)
+            }
+        })
+    
+    return jsonify({'exists': False})
+
+@app.route('/re-add/<branch_code>')
+@login_required
+def re_add_customer(branch_code):
+    """Quick re-add form for customers who were removed by mistake"""
+    if not current_user.is_master_admin() and current_user.branch != branch_code:
+        flash('Access denied.', 'error')
+        return redirect(url_for('index'))
+    
+    # Get customer info from query parameters
+    name = request.args.get('name', '')
+    phone = request.args.get('phone', '')
+    service_name = request.args.get('service', '')
+    
+    # Try to find the service by name
+    service = Service.query.filter_by(name=service_name).first()
+    service_id = service.id if service else None
+    
+    return render_template('add_customer.html',
+                         form=CustomerForm(name=name, phone=phone, service_id=service_id),
+                         branch_code=branch_code,
+                         branch_info=get_branches_dict().get(branch_code, {}),
+                         is_re_add=True,
+                         original_data={'name': name, 'phone': phone, 'service': service_name})
 # ============================================================================
 # UTILITY FUNCTIONS FOR MAINTENANCE
 # ============================================================================

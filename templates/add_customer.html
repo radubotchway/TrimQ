@@ -14,6 +14,23 @@
     </div>
 </div>
 
+<!-- Recently Added Customers Section -->
+<div class="row mb-4" id="recentlyAddedSection" style="display: none;">
+    <div class="col-12">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-check-circle"></i> Recently Added Customers
+                    <small class="ms-2 opacity-75">Click to undo if needed</small>
+                </h5>
+            </div>
+            <div class="card-body" id="recentlyAddedContent">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row justify-content-center">
     <div class="col-lg-8">
         <div class="card">
@@ -21,7 +38,7 @@
                 <h4 class="mb-0">Customer Information</h4>
             </div>
             <div class="card-body p-4">
-                <form method="POST">
+                <form method="POST" id="customerForm">
                     {{ form.hidden_tag() }}
                     
                     <div class="row mb-4">
@@ -104,12 +121,73 @@
                 </div>
             </div>
         </div>
+
+        <!-- Quick Actions Card -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-lightning"></i> Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-primary w-100" onclick="addAnotherCustomer()">
+                            <i class="bi bi-plus-circle"></i> Add Another Customer
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-info w-100" onclick="clearForm()">
+                            <i class="bi bi-arrow-clockwise"></i> Clear Form
+                        </button>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-2">
+                        <a href="{{ url_for('queue_manage', branch_code=branch_code) }}" class="btn btn-outline-success w-100">
+                            <i class="bi bi-list-check"></i> View Queue
+                        </a>
+                    </div>
+                    <div class="col-md-6 mb-2">
+                        <button class="btn btn-outline-warning w-100" onclick="fillSampleData()">
+                            <i class="bi bi-lightning-charge"></i> Sample Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Undo Modal -->
+<div class="modal fade" id="undoModal" tabindex="-1" aria-labelledby="undoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="undoModalLabel">
+                    <i class="bi bi-arrow-counterclockwise"></i> Undo Customer Addition
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="undoModalBody">
+                <!-- Content will be set by JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Keep Customer</button>
+                <button type="button" class="btn btn-warning" id="confirmUndoBtn">
+                    <i class="bi bi-trash"></i> Remove from Queue
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+// Store recently added customers in session storage for undo functionality
+let recentlyAdded = JSON.parse(sessionStorage.getItem('recentlyAdded') || '[]');
+
 document.addEventListener('DOMContentLoaded', function() {
     const printTicketCheckbox = document.getElementById('print_ticket');
     const ticketPreview = document.getElementById('ticketPreview');
@@ -142,6 +220,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize preview
     updatePreviewTicketNumber();
+    
+    // Show recently added customers if any
+    displayRecentlyAdded();
     
     // Form validation enhancement
     const form = document.querySelector('form');
@@ -202,6 +283,18 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Adding Customer...';
         submitBtn.disabled = true;
         
+        // Store customer data for potential undo
+        const customerData = {
+            name: nameInput.value,
+            phone: phoneInput.value,
+            service: serviceSelect.options[serviceSelect.selectedIndex].text,
+            timestamp: new Date().toISOString(),
+            branch: '{{ branch_code }}'
+        };
+        
+        // We'll get the actual customer ID after form submission
+        sessionStorage.setItem('pendingCustomer', JSON.stringify(customerData));
+        
         // Re-enable if form submission fails
         setTimeout(() => {
             submitBtn.innerHTML = originalText;
@@ -235,7 +328,209 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+    
+    // Check URL parameters for recently added customer
+    const urlParams = new URLSearchParams(window.location.search);
+    const customerAdded = urlParams.get('customer_added');
+    const customerId = urlParams.get('customer_id');
+    
+    if (customerAdded === 'true' && customerId) {
+        addToRecentlyAdded(customerId);
+    }
 });
+
+function displayRecentlyAdded() {
+    const section = document.getElementById('recentlyAddedSection');
+    const content = document.getElementById('recentlyAddedContent');
+    
+    // Filter recent customers (last 30 minutes)
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    recentlyAdded = recentlyAdded.filter(customer => 
+        new Date(customer.timestamp) > thirtyMinutesAgo
+    );
+    
+    // Update session storage
+    sessionStorage.setItem('recentlyAdded', JSON.stringify(recentlyAdded));
+    
+    if (recentlyAdded.length > 0) {
+        section.style.display = 'block';
+        content.innerHTML = recentlyAdded.map(customer => `
+            <div class="d-flex justify-content-between align-items-center p-3 border rounded mb-2 recently-added-item" 
+                 data-customer-id="${customer.id}">
+                <div>
+                    <h6 class="mb-1">${customer.name}</h6>
+                    <small class="text-muted">
+                        <i class="bi bi-telephone"></i> ${customer.phone} • 
+                        <i class="bi bi-scissors"></i> ${customer.service} • 
+                        <i class="bi bi-clock"></i> ${new Date(customer.timestamp).toLocaleTimeString()}
+                    </small>
+                </div>
+                <button class="btn btn-outline-danger btn-sm" 
+                        onclick="undoCustomerAddition(${customer.id}, '${customer.name}')"
+                        title="Remove this customer from queue">
+                    <i class="bi bi-arrow-counterclockwise"></i> Undo
+                </button>
+            </div>
+        `).join('');
+    } else {
+        section.style.display = 'none';
+    }
+}
+
+function addToRecentlyAdded(customerId) {
+    const pendingData = sessionStorage.getItem('pendingCustomer');
+    if (pendingData) {
+        const customerData = JSON.parse(pendingData);
+        customerData.id = customerId;
+        
+        recentlyAdded.unshift(customerData);
+        
+        // Keep only last 5 entries
+        recentlyAdded = recentlyAdded.slice(0, 5);
+        
+        sessionStorage.setItem('recentlyAdded', JSON.stringify(recentlyAdded));
+        sessionStorage.removeItem('pendingCustomer');
+        
+        displayRecentlyAdded();
+    }
+}
+
+function undoCustomerAddition(customerId, customerName) {
+    const modal = new bootstrap.Modal(document.getElementById('undoModal'));
+    const modalBody = document.getElementById('undoModalBody');
+    const confirmBtn = document.getElementById('confirmUndoBtn');
+    
+    modalBody.innerHTML = `
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Remove ${customerName} from the queue?</strong>
+        </div>
+        <p>This will:</p>
+        <ul>
+            <li>Remove the customer from the waiting queue</li>
+            <li>Delete their ticket information</li>
+            <li>Free up their position for other customers</li>
+        </ul>
+        <p class="text-muted">
+            <strong>Note:</strong> This action cannot be undone. If the customer returns, 
+            they will need to be added to the queue again.
+        </p>
+    `;
+    
+    confirmBtn.onclick = function() {
+        // Show loading state
+        confirmBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Removing...';
+        confirmBtn.disabled = true;
+        
+        fetch(`/api/remove_customer/${customerId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                modal.hide();
+                
+                // Remove from recently added list
+                recentlyAdded = recentlyAdded.filter(c => c.id != customerId);
+                sessionStorage.setItem('recentlyAdded', JSON.stringify(recentlyAdded));
+                
+                // Update display
+                displayRecentlyAdded();
+                
+                // Show success message
+                showAlert('success', data.message);
+            } else {
+                showAlert('error', data.message);
+                confirmBtn.innerHTML = '<i class="bi bi-trash"></i> Remove from Queue';
+                confirmBtn.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('error', 'Error removing customer. Please try again.');
+            confirmBtn.innerHTML = '<i class="bi bi-trash"></i> Remove from Queue';
+            confirmBtn.disabled = false;
+        });
+    };
+    
+    modal.show();
+}
+
+// Quick action functions
+function addAnotherCustomer() {
+    // Clear the form but keep the service selection and ticket option
+    const form = document.getElementById('customerForm');
+    const nameInput = form.querySelector('input[name="name"]');
+    const phoneInput = form.querySelector('input[name="phone"]');
+    const notesInput = form.querySelector('textarea[name="notes"]');
+    
+    nameInput.value = '';
+    phoneInput.value = '';
+    notesInput.value = '';
+    
+    // Remove validation classes
+    nameInput.classList.remove('is-valid', 'is-invalid');
+    phoneInput.classList.remove('is-valid', 'is-invalid');
+    
+    // Focus on name input
+    nameInput.focus();
+}
+
+function clearForm() {
+    const form = document.getElementById('customerForm');
+    form.reset();
+    
+    // Remove all validation classes
+    form.querySelectorAll('.is-valid, .is-invalid').forEach(el => {
+        el.classList.remove('is-valid', 'is-invalid');
+    });
+    
+    // Reset ticket preview
+    document.getElementById('print_ticket').checked = true;
+    document.getElementById('ticketPreview').style.display = 'block';
+}
+
+function fillSampleData() {
+    const sampleNames = ['John Doe', 'Jane Smith', 'Kofi Asante', 'Ama Boateng', 'Kwame Mensah'];
+    const samplePhones = ['0241234567', '0551234567', '0261234567', '0271234567', '0201234567'];
+    
+    const randomName = sampleNames[Math.floor(Math.random() * sampleNames.length)];
+    const randomPhone = samplePhones[Math.floor(Math.random() * samplePhones.length)];
+    
+    document.querySelector('input[name="name"]').value = randomName;
+    document.querySelector('input[name="phone"]').value = randomPhone;
+    
+    // Select a random service
+    const serviceSelect = document.querySelector('select[name="service_id"]');
+    if (serviceSelect.options.length > 1) {
+        const randomService = Math.floor(Math.random() * (serviceSelect.options.length - 1)) + 1;
+        serviceSelect.selectedIndex = randomService;
+    }
+}
+
+function showAlert(type, message) {
+    const alertContainer = document.querySelector('.container');
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insert at the top of the container
+    alertContainer.insertBefore(alertDiv, alertContainer.firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
 
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
@@ -251,6 +546,18 @@ document.addEventListener('keydown', function(e) {
     if (e.altKey && e.key === 's') {
         e.preventDefault();
         document.querySelector('select[name="service_id"]').focus();
+    }
+    
+    // Alt + N: Add another customer
+    if (e.altKey && e.key === 'n') {
+        e.preventDefault();
+        addAnotherCustomer();
+    }
+    
+    // Alt + C: Clear form
+    if (e.altKey && e.key === 'c') {
+        e.preventDefault();
+        clearForm();
     }
 });
 </script>
@@ -287,6 +594,18 @@ document.addEventListener('keydown', function(e) {
     background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem), 16px 12px;
 }
 
+/* Recently added customers styling */
+.recently-added-item {
+    background: linear-gradient(135deg, rgba(25, 135, 84, 0.05) 0%, rgba(25, 135, 84, 0.1) 100%);
+    border-left: 4px solid #198754 !important;
+    transition: all 0.3s ease;
+}
+
+.recently-added-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(25, 135, 84, 0.2);
+}
+
 /* Ticket preview animation */
 #ticketPreview {
     animation: slideDown 0.3s ease-out;
@@ -314,6 +633,72 @@ document.addEventListener('keydown', function(e) {
     border-color: var(--ghana-green);
 }
 
+/* Quick actions styling */
+.card .btn {
+    transition: all 0.3s ease;
+}
+
+.card .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Undo button styling */
+.btn-outline-danger:hover {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: white;
+    transform: scale(1.05);
+}
+
+/* Alert animations */
+.alert {
+    animation: alertSlideIn 0.3s ease-out;
+}
+
+@keyframes alertSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Loading states */
+.btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Modal enhancements */
+.modal-header.bg-warning {
+    border-bottom: 2px solid #ffc107;
+}
+
+.modal-body .alert {
+    border-radius: 8px;
+    border: none;
+}
+
+.modal-body .alert-warning {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-left: 4px solid #d97706;
+}
+
+/* Phone number formatting */
+.form-control[name="phone"] {
+    font-family: 'Courier New', monospace;
+    letter-spacing: 1px;
+}
+
+/* Service select enhancement */
+.form-select option {
+    padding: 0.5rem;
+}
+
 /* Mobile responsiveness */
 @media (max-width: 768px) {
     .ticket-preview-container {
@@ -323,6 +708,168 @@ document.addEventListener('keydown', function(e) {
     .mini-ticket {
         padding: 10px !important;
     }
+    
+    .recently-added-item {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .recently-added-item .btn {
+        margin-top: 0.5rem;
+        width: 100%;
+    }
+    
+    .quick-actions .btn {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Print styles */
+@media print {
+    .no-print,
+    #recentlyAddedSection,
+    .card:not(#ticketPreview),
+    .btn,
+    .modal {
+        display: none !important;
+    }
+    
+    #ticketPreview {
+        box-shadow: none;
+        border: 2px solid #000;
+    }
+}
+
+/* Custom focus styles */
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--ghana-green);
+    box-shadow: 0 0 0 0.2rem rgba(0, 107, 60, 0.25);
+}
+
+/* Success states */
+.border-success {
+    border-color: #198754 !important;
+    border-width: 2px !important;
+}
+
+.bg-success {
+    background: linear-gradient(135deg, #198754 0%, #20c997 100%) !important;
+}
+
+/* Hover effects for interactive elements */
+.recently-added-item {
+    cursor: pointer;
+}
+
+.recently-added-item:hover h6 {
+    color: var(--ghana-green);
+}
+
+/* Custom scrollbar for long lists */
+#recentlyAddedContent::-webkit-scrollbar {
+    width: 6px;
+}
+
+#recentlyAddedContent::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+#recentlyAddedContent::-webkit-scrollbar-thumb {
+    background: var(--ghana-green);
+    border-radius: 10px;
+}
+
+#recentlyAddedContent::-webkit-scrollbar-thumb:hover {
+    background: #004d2a;
+}
+
+/* Badge styling */
+.badge {
+    font-size: 0.75rem;
+    padding: 0.35em 0.65em;
+}
+
+/* Enhanced button groups */
+.btn-group .btn {
+    border-radius: 6px !important;
+    margin: 0 2px;
+}
+
+/* Tooltip styling */
+[title] {
+    cursor: help;
+}
+
+/* Form field spacing */
+.row > [class*="col-"] {
+    margin-bottom: 0.5rem;
+}
+
+@media (min-width: 768px) {
+    .row > [class*="col-"] {
+        margin-bottom: 0;
+    }
+}
+
+/* Success indicators */
+.text-success {
+    color: var(--ghana-green) !important;
+}
+
+.border-left-success {
+    border-left: 4px solid var(--ghana-green) !important;
+}
+
+/* Card hover effects */
+.card {
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+}
+
+/* Input group enhancements */
+.input-group-text {
+    background: linear-gradient(135deg, var(--ghana-green) 0%, var(--ghana-gold) 100%);
+    color: white;
+    border: none;
+    font-weight: 600;
+}
+
+/* Validation feedback positioning */
+.invalid-feedback,
+.valid-feedback {
+    margin-top: 0.25rem;
+    font-size: 0.875rem;
+}
+
+/* Quick action icons */
+.quick-actions .bi {
+    margin-right: 0.5rem;
+}
+
+/* Enhanced transitions */
+* {
+    transition: all 0.2s ease;
+}
+
+button,
+.btn,
+input,
+select,
+textarea {
+    transition: all 0.3s ease;
+}
+
+/* Focus-visible for accessibility */
+button:focus-visible,
+.btn:focus-visible {
+    outline: 2px solid var(--ghana-green);
+    outline-offset: 2px;
 }
 </style>
 {% endblock %}
