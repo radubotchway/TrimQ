@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrimQ - Customer Ticket #{{ ticket_number }}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+        
+        :root {
+            --ghana-gold: #ffd700;
+            --ghana-green: #006b3c;
+            --ghana-red: #ce1126;
+            --primary-color: #2563eb;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #f8f9fa;
+            padding: 20px;
+        }
+
+        .ticket-container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .ticket-header {
+            background: linear-gradient(135deg, var(--ghana-green) 0%, var(--primary-color) 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .ghana-flag {
+            height: 4px;
+            background: linear-gradient(to right, var(--ghana-red) 33%, var(--ghana-gold) 33%, var(--ghana-gold) 66%, var(--ghana-green) 66%);
+            margin-bottom: 15px;
+        }
+
+        .ticket-logo {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .ticket-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .ticket-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .ticket-body {
+            padding: 25px;
+        }
+
+        .ticket-number {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .ticket-number-label {
+            font-size: 0.8rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .ticket-number-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            letter-spacing: 2px;
+        }
+
+        .customer-info {
+            margin-bottom: 25px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px dashed #eee;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.9rem;
+        }
+
+        .info-value {
+            font-weight: 500;
+            color: #666;
+            text-align: right;
+            font-size: 0.9rem;
+        }
+
+        .queue-info {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .queue-position {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .queue-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .estimated-wait {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--ghana-green);
+        }
+
+        .service-details {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .service-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .service-price {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--ghana-green);
+        }
+
+        .ticket-footer {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .footer-note {
+            margin-bottom: 10px;
+        }
+
+        .timestamp {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .ticket-container {
+                box-shadow: none;
+                margin: 0;
+                max-width: none;
+                width: 100%;
+            }
+            
+            .no-print {
+                display: none !important;
+            }
+            
+            .ticket-header {
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+        }
+
+        /* Action buttons */
+        .ticket-actions {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-print {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-print:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+        }
+
+        .btn-back {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-back:hover {
+            background: #4b5563;
+            transform: translateY(-2px);
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+            
+            .ticket-container {
+                max-width: none;
+                margin: 0;
+            }
+            
+            .ticket-actions {
+                position: relative;
+                text-align: center;
+                margin-bottom: 20px;
+            }
+        }
+
+        /* Animation */
+        .ticket-container {
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Action Buttons -->
+    <div class="ticket-actions no-print">
+        <button onclick="window.print()" class="btn btn-print">
+            🖨️ Print Ticket
+        </button>
+        <a href="{{ url_for('queue_manage', branch_code=customer.branch) }}" class="btn btn-back">
+            ← Back to Queue
+        </a>
+    </div>
+
+    <!-- Ticket -->
+    <div class="ticket-container">
+        <!-- Header -->
+        <div class="ticket-header">
+            <div class="ghana-flag"></div>
+            <div class="ticket-logo">✂️</div>
+            <div class="ticket-title">TrimQ</div>
+            <div class="ticket-subtitle">{{ branch_info.name }}</div>
+        </div>
+
+        <!-- Body -->
+        <div class="ticket-body">
+            <!-- Ticket Number -->
+            <div class="ticket-number">
+                <div class="ticket-number-label">Ticket Number</div>
+                <div class="ticket-number-value">{{ ticket_number }}</div>
+            </div>
+
+            <!-- Customer Information -->
+            <div class="customer-info">
+                <div class="info-row">
+                    <span class="info-label">👤 Customer</span>
+                    <span class="info-value">{{ customer.name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">📞 Phone</span>
+                    <span class="info-value">{{ customer.phone }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">🕐 Arrival</span>
+                    <span class="info-value">{{ customer.created_at.strftime('%H:%M') }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">📅 Date</span>
+                    <span class="info-value">{{ customer.created_at.strftime('%B %d, %Y') }}</span>
+                </div>
+            </div>
+
+            <!-- Queue Position -->
+            <div class="queue-info">
+                <div class="queue-position">#{{ queue_position }}</div>
+                <div class="queue-label">Your position in queue</div>
+                <div class="estimated-wait">
+                    ⏱️ Estimated wait: {{ estimated_wait }}
+                </div>
+            </div>
+
+            <!-- Service Details -->
+            <div class="service-details">
+                <div class="service-name">{{ customer.service.name }}</div>
+                <div class="info-row">
+                    <span class="info-label">⏰ Duration</span>
+                    <span class="info-value">{{ customer.service.duration }} minutes</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">💰 Price</span>
+                    <span class="service-price">GH₵{{ "%.2f"|format(customer.service.price) }}</span>
+                </div>
+            </div>
+
+            {% if customer.notes %}
+            <div class="service-details">
+                <div class="info-label">📝 Notes</div>
+                <div style="margin-top: 10px; color: #666;">{{ customer.notes }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Footer -->
+        <div class="ticket-footer">
+            <div class="footer-note">
+                📍 {{ branch_info.address }}<br>
+                📞 {{ branch_info.phone }}
+            </div>
+            <div class="timestamp">
+                Issued: {{ now.strftime('%B %d, %Y at %H:%M') }}
+            </div>
+            <div style="margin-top: 10px; font-size: 0.7rem;">
+                ⚠️ Please keep this ticket and present it when called<br>
+                🔄 Queue updates every 30 seconds on our display
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-print on load (optional)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('autoprint') === 'true') {
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        }
+
+        // Print button functionality
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+P or Cmd+P to print
+            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+                e.preventDefault();
+                window.print();
+            }
+        });
+
+        // After printing, option to go back
+        window.addEventListener('afterprint', function() {
+            const goBack = confirm('Ticket printed! Would you like to go back to the queue management?');
+            if (goBack) {
+                window.location.href = "{{ url_for('queue_manage', branch_code=customer.branch) }}";
+            }
+        });
+    </script>
+</body>
+</html>

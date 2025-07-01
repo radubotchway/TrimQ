@@ -5,9 +5,14 @@
     <h2 class="fw-bold">
         <i class="bi bi-list-check"></i> {{ branch_info.name }} Queue
     </h2>
-    <a href="{{ url_for('add_customer', branch_code=branch_code) }}" class="btn btn-ghana">
-        <i class="bi bi-person-plus"></i> Add Customer
-    </a>
+    <div class="btn-group">
+        <a href="{{ url_for('add_customer', branch_code=branch_code) }}" class="btn btn-ghana">
+            <i class="bi bi-person-plus"></i> Add Customer
+        </a>
+        <a href="{{ url_for('revenue_report') }}?date={{ now.strftime('%Y-%m-%d') }}" class="btn btn-outline-success">
+            <i class="bi bi-graph-up"></i> Today's Revenue
+        </a>
+    </div>
 </div>
 
 <div class="row">
@@ -32,7 +37,16 @@
                                         <small>GH₵{{ customer.service.price }} • {{ customer.service.duration }} min</small>
                                     </div>
                                 </div>
-                                <small class="text-muted">#{{ customer.id }}</small>
+                                <div class="text-end">
+                                    <small class="text-muted">#{{ customer.id }}</small>
+                                    <br>
+                                    <a href="{{ url_for('print_ticket', customer_id=customer.id) }}" 
+                                       class="btn btn-outline-info btn-sm mt-1" 
+                                       title="Generate Ticket" 
+                                       target="_blank">
+                                        <i class="bi bi-ticket-perforated"></i>
+                                    </a>
+                                </div>
                             </div>
                             
                             {% if customer.notes %}
@@ -95,7 +109,16 @@
                                         <small>GH₵{{ customer.service.price }} • {{ customer.service.duration }} min</small>
                                     </div>
                                 </div>
-                                <small class="text-muted">#{{ customer.id }}</small>
+                                <div class="text-end">
+                                    <small class="text-muted">#{{ customer.id }}</small>
+                                    <br>
+                                    <a href="{{ url_for('print_ticket', customer_id=customer.id) }}" 
+                                       class="btn btn-outline-info btn-sm mt-1" 
+                                       title="Print Updated Ticket" 
+                                       target="_blank">
+                                        <i class="bi bi-ticket-perforated"></i>
+                                    </a>
+                                </div>
                             </div>
                             
                             {% if customer.notes %}
@@ -109,7 +132,8 @@
                                     <i class="bi bi-play-circle"></i> Started: {{ customer.assigned_at.strftime('%H:%M') }}
                                 </small>
                                 <a href="{{ url_for('complete_customer', customer_id=customer.id) }}" 
-                                   class="btn btn-primary btn-sm">
+                                   class="btn btn-primary btn-sm"
+                                   onclick="return confirm('Mark {{ customer.name }} as completed? This will add GH₵{{ customer.service.price }} to today\'s revenue.')">
                                     <i class="bi bi-check-circle"></i> Complete
                                 </a>
                             </div>
@@ -126,4 +150,238 @@
         </div>
     </div>
 </div>
+
+<!-- Revenue Summary Card -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h5 class="text-success mb-1" id="todayRevenue">GH₵0.00</h5>
+                        <small class="text-muted">Today's Revenue</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h5 class="text-info mb-1" id="todayCustomers">0</h5>
+                        <small class="text-muted">Customers Served</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h5 class="text-warning mb-1">{{ (waiting|length + in_progress|length) }}</h5>
+                        <small class="text-muted">Currently Active</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h5 class="text-primary mb-1" id="avgRevenue">GH₵0.00</h5>
+                        <small class="text-muted">Avg per Customer</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load today's revenue data
+function loadTodayRevenue() {
+    fetch(`/api/revenue/{{ branch_code }}`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.error) {
+                document.getElementById('todayRevenue').textContent = `GH₵${data.total_revenue.toFixed(2)}`;
+                document.getElementById('todayCustomers').textContent = data.total_customers;
+                
+                const avgRevenue = data.total_customers > 0 ? (data.total_revenue / data.total_customers) : 0;
+                document.getElementById('avgRevenue').textContent = `GH₵${avgRevenue.toFixed(2)}`;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading revenue data:', error);
+        });
+}
+
+// Load revenue data on page load
+document.addEventListener('DOMContentLoaded', loadTodayRevenue);
+
+// Auto-refresh revenue data every 30 seconds
+setInterval(loadTodayRevenue, 30000);
+
+// Ticket generation with confirmation
+document.querySelectorAll('a[href*="print_ticket"]').forEach(link => {
+    link.addEventListener('click', function(e) {
+        const customerName = this.closest('.queue-item').querySelector('h5').textContent;
+        const confirmMessage = `Generate ticket for ${customerName}? This will open a new window with the printable ticket.`;
+        
+        if (!confirm(confirmMessage)) {
+            e.preventDefault();
+        }
+    });
+});
+
+// Enhanced completion confirmation
+document.querySelectorAll('a[href*="complete_customer"]').forEach(link => {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        const customerItem = this.closest('.queue-item');
+        const customerName = customerItem.querySelector('h5').textContent;
+        const servicePrice = customerItem.textContent.match(/GH₵(\d+(?:\.\d{2})?)/)[1];
+        
+        const confirmation = confirm(
+            `Complete service for ${customerName}?\n\n` +
+            `• Service will be marked as completed\n` +
+            `• GH₵${servicePrice} will be added to today's revenue\n` +
+            `• Customer will be removed from the queue\n\n` +
+            `Continue?`
+        );
+        
+        if (confirmation) {
+            // Show loading state
+            this.innerHTML = '<i class="bi bi-hourglass-split"></i> Completing...';
+            this.classList.add('disabled');
+            
+            // Navigate to completion URL
+            window.location.href = this.href;
+        }
+    });
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    // Alt + T: Generate ticket for first waiting customer
+    if (e.altKey && e.key === 't') {
+        e.preventDefault();
+        const firstTicketLink = document.querySelector('.queue-item a[href*="print_ticket"]');
+        if (firstTicketLink) {
+            firstTicketLink.click();
+        }
+    }
+    
+    // Alt + C: Complete first in-progress customer
+    if (e.altKey && e.key === 'c') {
+        e.preventDefault();
+        const firstCompleteLink = document.querySelector('a[href*="complete_customer"]');
+        if (firstCompleteLink) {
+            firstCompleteLink.click();
+        }
+    }
+    
+    // Alt + R: Refresh revenue data
+    if (e.altKey && e.key === 'r') {
+        e.preventDefault();
+        loadTodayRevenue();
+    }
+});
+
+// Real-time queue updates (optional)
+function refreshQueue() {
+    // Only refresh if no forms are being filled out
+    const activeElement = document.activeElement;
+    if (!activeElement || activeElement.tagName !== 'SELECT') {
+        window.location.reload();
+    }
+}
+
+// Auto-refresh queue every 60 seconds
+setInterval(refreshQueue, 60000);
+
+// Visual feedback for actions
+document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function() {
+        const submitBtn = this.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Assigning...';
+            submitBtn.disabled = true;
+        }
+    });
+});
+
+// Revenue data animation
+function animateRevenue() {
+    const revenueElement = document.getElementById('todayRevenue');
+    revenueElement.style.transform = 'scale(1.1)';
+    revenueElement.style.color = 'var(--ghana-green)';
+    
+    setTimeout(() => {
+        revenueElement.style.transform = 'scale(1)';
+        revenueElement.style.color = '';
+    }, 300);
+}
+
+// Call animation when revenue updates
+const originalLoadRevenue = loadTodayRevenue;
+loadTodayRevenue = function() {
+    const currentRevenue = document.getElementById('todayRevenue').textContent;
+    originalLoadRevenue();
+    
+    setTimeout(() => {
+        const newRevenue = document.getElementById('todayRevenue').textContent;
+        if (newRevenue !== currentRevenue) {
+            animateRevenue();
+        }
+    }, 100);
+};
+</script>
+
+<style>
+/* Queue item styling */
+.queue-item {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid var(--primary-color);
+    transition: all 0.3s ease;
+}
+
+.queue-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+/* Revenue summary styling */
+.card.bg-light {
+    border: 2px solid #e9ecef;
+}
+
+.card.bg-light h5 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    transition: all 0.3s ease;
+}
+
+/* Button enhancements */
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .queue-item {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .btn-group .btn {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Animation keyframes */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.revenue-pulse {
+    animation: pulse 0.5s ease-in-out;
+}
+</style>
 {% endblock %}
