@@ -254,21 +254,34 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Validate service selection
-        if (!serviceSelect.value) {
+        if (!serviceSelect.value || serviceSelect.value === '0') {
             serviceSelect.classList.add('is-invalid');
+            serviceSelect.classList.remove('is-valid');
             isValid = false;
         } else {
             serviceSelect.classList.remove('is-invalid');
             serviceSelect.classList.add('is-valid');
-        }
-        
+        }        
         return isValid;
     }
     
-    // Add validation listeners
-    nameInput.addEventListener('input', validateForm);
-    phoneInput.addEventListener('input', validateForm);
+    // Add validation listeners (only after user interaction)
+    nameInput.addEventListener('blur', validateForm);
+    phoneInput.addEventListener('blur', validateForm);
     serviceSelect.addEventListener('change', validateForm);
+
+    // Also validate on form submission attempt
+    nameInput.addEventListener('input', function() {
+        if (this.classList.contains('is-invalid') || this.classList.contains('is-valid')) {
+            validateForm();
+        }
+    });
+
+    phoneInput.addEventListener('input', function() {
+        if (this.classList.contains('is-invalid') || this.classList.contains('is-valid')) {
+            validateForm();
+        }
+    });
     
     // Form submission with loading state
     form.addEventListener('submit', function(e) {

@@ -1,228 +1,358 @@
-# TrimQ ]
-A professional multi-branch queue management system designed specifically for Ghanaian barber shops and franchises.
+# TrimQ - Professional Queue Management System
 
-![TrimQ Logo](https://img.shields.io/badge/TrimQ-Franchise-success?style=for-the-badge&logo=scissors)
+A comprehensive multi-branch queue management system designed specifically for Ghanaian barber shops and salons, featuring real-time revenue tracking, customer management, and professional ticketing.
 
-## 🌟 Features
+![TrimQ System](https://img.shields.io/badge/TrimQ-Professional-success?style=for-the-badge&logo=scissors) 
+![Ghana Ready](https://img.shields.io/badge/Ghana-Ready-green?style=for-the-badge) 
+![Multi Branch](https://img.shields.io/badge/Multi-Branch-blue?style=for-the-badge)
 
-### Multi-Branch Management
-- **Master Admin Dashboard**: Oversee all franchise locations from one central hub
-- **Branch-Specific Access**: Individual admin controls for each location
-- **Real-Time Statistics**: Live queue status across all branches
+## 🌟 Key Features
 
-### Queue Management
-- **Digital Queue System**: Replace paper-based queuing with modern digital solution
-- **Customer Registration**: Name, phone, service selection, and special notes
-- **Barber Assignment**: Assign customers to specific barbers with real-time tracking
-- **Wait Time Estimation**: Automatic calculation based on service duration and queue position
+### 🏢 Multi-Branch Franchise Management
+- **Centralized Control**: Master admin dashboard for franchise owners
+- **Branch Independence**: Individual admin controls for each location
+- **Real-Time Monitoring**: Live statistics across all branches
+- **Scalable Architecture**: Easy addition of new branches
 
-### Financial Integration
-- **Ghana Cedis (GH₵) Support**: Built-in local currency formatting and calculations
+### 📱 Digital Queue System
+- **Paperless Operations**: Replace traditional paper queues
+- **Customer Registration**: Name, phone, service selection with notes
+- **Barber Assignment**: Real-time staff allocation and tracking
+- **Wait Time Estimation**: Automatic calculations based on service duration
+- **Ticket Generation**: Professional printable tickets with QR codes
+
+### 💰 Financial Management
+- **Ghana Cedis Integration**: Built-in GH₵ currency support
+- **Real-Time Revenue**: Live tracking as services complete
 - **Service Pricing**: Customizable pricing for different service types
-- **Revenue Tracking**: Monitor daily completions and earnings potential
+- **Daily Reports**: Comprehensive revenue analytics
+- **Branch Comparison**: Performance metrics across locations
 
-### Public Display
-- **Customer-Facing Screen**: Clean, professional display for waiting areas
+### 👥 Customer Relationship Management
+- **Customer Database**: Comprehensive customer profiles with photos
+- **Visit History**: Track customer loyalty and preferences
+- **Phone Integration**: Quick customer lookup and queue addition
+- **Notes System**: Special requirements and customer preferences
+- **Analytics**: Customer frequency and spending patterns
+
+### 🎯 Public Display System
+- **Customer-Facing Screen**: Clean, professional waiting area display
 - **Auto-Refresh**: Updates every 30 seconds without manual intervention
-- **Ghana Flag Branding**: Local cultural integration in design
+- **Queue Status**: Real-time "Now Serving" and "Up Next" displays
+- **Ghana Branding**: Culturally appropriate design elements
 
-### Role-Based Access Control
+### 🔐 Role-Based Access Control
 - **Master Admin**: Full system access across all branches
 - **Branch Admin**: Complete control over assigned branch
 - **Staff Access**: Basic queue management capabilities
-- **Secure Authentication**: Password-protected access with role verification
+- **Secure Authentication**: Password-protected with role verification
+- **Email Integration**: Password reset functionality
 
-## 🚀 Quick Start
+## 🚀 Quick Start Guide
 
 ### Prerequisites
-- Python 3.8+
-- Flask and dependencies (see requirements below)
+- Python 3.8 or higher
+- Modern web browser (Chrome, Firefox, Safari, Edge)
+- Network access for multi-device usage
 
 ### Installation
 
-1. **Clone or Download**
+1. **Download and Setup**
    ```bash
-   # Download the project files to your local machine
-   # Ensure you have app.py and all HTML template files
+   # Clone or download the project files
+   # Ensure you have all files including app.py and templates folder
    ```
 
 2. **Install Dependencies**
    ```bash
-   pip install flask flask-sqlalchemy flask-login flask-wtf wtforms werkzeug
+   pip install -r requirements.txt
    ```
 
-3. **Run the Application**
+3. **Initialize and Run**
    ```bash
    python app.py
    ```
 
 4. **Access the System**
-   - Open your browser to `http://127.0.0.1:5000`
-   - The database and sample data will be created automatically
+   - Open browser to `http://127.0.0.1:5000`
+   - Database and sample data created automatically
+   - Ready to use immediately!
 
 ## 👥 Default User Accounts
 
-| Role | Username | Password | Access Level |
-|------|----------|----------|--------------|
-| Master Admin | `master_admin` | `master123` | All branches + system settings |
-| Main Branch | `main_admin` | `main123` | Main Branch only |
-| Downtown Branch | `downtown_admin` | `downtown123` | Downtown Branch only |
-| East Legon Branch | `uptown_admin` | `uptown123` | East Legon Branch only |
+| Role | Username | Password | Access Level | Description |
+|------|----------|----------|--------------|-------------|
+| **Master Admin** | `master_admin` | `master123` | All branches + system settings | Franchise owner access |
+| **Main Branch** | `main_admin` | `main123` | Main Branch only | Oxford Street, Osu |
+| **Downtown** | `downtown_admin` | `downtown123` | Downtown Branch only | Kwame Nkrumah Ave |
+| **East Legon** | `uptown_admin` | `uptown123` | East Legon Branch only | Liberation Road |
 
-**⚠️ IMPORTANT**: Change these default passwords in production!
+⚠️ **SECURITY**: Change these passwords immediately in production!
 
-## 🏢 Sample Branches
+## 🏪 Pre-Configured Branches
 
-The system comes pre-configured with three sample locations:
+### 1. Main Branch (Osu)
+- **Address**: 123 Oxford Street, Osu
+- **Phone**: 0302-123-456
+- **Code**: `main`
+- **Features**: Full service flagship location
 
-1. **Main Branch**
-   - Address: 123 Oxford Street, Osu
-   - Phone: 0302-123-456
-   - Code: `main`
+### 2. Downtown Branch (Adabraka)
+- **Address**: 45 Kwame Nkrumah Ave, Adabraka
+- **Phone**: 0302-789-012
+- **Code**: `downtown`
+- **Features**: High-traffic commercial area
 
-2. **Downtown Branch**
-   - Address: 45 Kwame Nkrumah Ave, Adabraka
-   - Phone: 0302-789-012
-   - Code: `downtown`
+### 3. East Legon Branch (Residential)
+- **Address**: 78 Liberation Road, East Legon
+- **Phone**: 0302-345-678
+- **Code**: `uptown`
+- **Features**: Premium residential location
 
-3. **East Legon Branch**
-   - Address: 78 Liberation Road, East Legon
-   - Phone: 0302-345-678
-   - Code: `uptown`
+## 💼 Default Services Catalog
 
-## 💰 Default Services
+| Service | Duration | Price (GH₵) | Description |
+|---------|----------|-------------|-------------|
+| **Classic Cut** | 30 min | ₵50 | Standard haircut service |
+| **Beard Styling** | 20 min | ₵35 | Professional beard grooming |
+| **Hot Towel Shave** | 25 min | ₵40 | Traditional shaving experience |
+| **Full Service** | 60 min | ₵80 | Complete grooming package |
+| **Quick Trim** | 15 min | ₵25 | Express touch-up service |
 
-| Service | Duration | Price (GH₵) |
-|---------|----------|-------------|
-| Classic Cut | 30 min | ₵50 |
-| Beard Styling | 20 min | ₵35 |
-| Hot Towel Shave | 25 min | ₵40 |
-| Full Service | 60 min | ₵80 |
-| Quick Trim | 15 min | ₵25 |
+*All prices can be customized per branch requirements*
 
 ## 📱 System Workflow
 
 ### For Branch Staff:
-1. **Login** with branch credentials
-2. **Add Customers** to queue with service selection
-3. **Assign Customers** to available barbers
-4. **Mark Complete** when service is finished
-5. **Monitor Queue** via management dashboard
+1. **Login** → Use branch-specific credentials
+2. **Add Customers** → Name, phone, service selection
+3. **Generate Tickets** → Optional printable queue tickets
+4. **Assign to Barbers** → Real-time staff allocation
+5. **Complete Services** → Automatic revenue tracking
+6. **Monitor Performance** → Live dashboard analytics
 
 ### For Customers:
-1. **Registration** at front desk with staff assistance
-2. **Wait Notification** via public display screen
-3. **Service Assignment** when barber becomes available
-4. **Completion** and payment processing
+1. **Registration** → Staff-assisted queue entry
+2. **Receive Ticket** → Printed ticket with queue position
+3. **Monitor Status** → Public display screen updates
+4. **Service Assignment** → Called when barber available
+5. **Service Completion** → Payment and checkout
 
 ### For Master Admin:
-1. **System Overview** across all franchise locations
-2. **Branch Management** - add/edit locations
-3. **Service Management** - pricing and duration control
-4. **Staff Management** - barber assignment and tracking
-5. **Performance Monitoring** - daily statistics and trends
+1. **System Overview** → Franchise-wide dashboard
+2. **Branch Management** → Add/edit locations and settings
+3. **Staff Management** → User accounts and permissions
+4. **Revenue Analysis** → Cross-branch performance comparison
+5. **Customer Insights** → Franchise-wide customer analytics
 
-## 🔧 Configuration
+## 🎨 Design Philosophy
+
+### Ghana-Inspired Aesthetics
+- **National Colors**: Green, gold, and red throughout
+- **Cultural Elements**: Ghana flag integration and local sensibilities
+- **Professional Feel**: Clean, modern interface suitable for business
+
+### User Experience Focus
+- **Intuitive Navigation**: Minimal learning curve for staff
+- **Mobile Responsive**: Works on phones, tablets, and desktops
+- **Accessibility**: Clear typography and high contrast design
+- **Speed Optimized**: Fast loading for busy environments
+
+## 🔧 Advanced Configuration
 
 ### Adding New Branches
-1. Login as Master Admin
-2. Go to Settings → Branch Management
-3. Fill in branch details (code, name, address, phone)
-4. Create branch admin account for new location
+1. Master Admin → Settings → Branch Management
+2. Enter branch code, name, address, phone
+3. Create branch admin account
+4. Add barbers to the new location
+5. Customize services and pricing if needed
 
 ### Customizing Services
-1. Access Settings → Services
-2. Add new services with pricing and duration
-3. Edit existing services as needed
+1. Settings → Services Management
+2. Add services with duration and pricing
+3. Edit existing services (Master Admin only)
 4. Services are shared across all branches
 
 ### Managing Staff
-1. Navigate to Settings → Barbers
-2. Add barbers to specific branches
-3. Staff assignments are branch-specific
+1. Settings → User Management
+2. Add users with appropriate roles and branch assignments
+3. Set up email addresses for password reset functionality
+4. Manage user permissions and access levels
 
-## 🎨 Design Features
+### Revenue Configuration
+- Real-time calculation based on completed services
+- Automatic currency formatting in Ghana Cedis
+- Daily, weekly, and monthly reporting capabilities
+- Export functionality for external accounting systems
 
-### Ghana-Inspired Theme
-- **Colors**: Green, gold, and red color scheme reflecting national identity
-- **Currency**: Native Ghana Cedis (GH₵) formatting
-- **Cultural Elements**: Ghana flag integration in branding
+## 📊 Reporting and Analytics
 
-### Modern UI/UX
-- **Bootstrap 5**: Responsive, mobile-friendly design
-- **Bootstrap Icons**: Professional iconography throughout
-- **Poppins Font**: Clean, modern typography
-- **Glass Effects**: Contemporary visual styling with backdrop filters
+### Real-Time Revenue Tracking
+- **Live Updates**: Revenue calculated as services complete
+- **Branch Comparison**: Side-by-side performance metrics
+- **Service Breakdown**: Most popular and profitable services
+- **Hourly Trends**: Peak business hours identification
 
-### Responsive Design
-- **Mobile Optimized**: Works seamlessly on phones and tablets
-- **Desktop Focused**: Optimized for daily business use on computers
-- **Public Display**: Large-screen friendly for customer viewing
+### Customer Analytics
+- **Visit Frequency**: Customer loyalty tracking
+- **Service Preferences**: Most requested services per customer
+- **Geographic Analysis**: Customer distribution by area
+- **Growth Metrics**: New vs. returning customer ratios
 
-## 🔒 Security Features
+### Operational Insights
+- **Queue Efficiency**: Average wait times and service duration
+- **Barber Performance**: Individual staff productivity
+- **Peak Hours**: Busiest times for staffing optimization
+- **Revenue Trends**: Daily, weekly, and monthly patterns
 
+## 🛡️ Security Features
+
+### Data Protection
 - **Password Hashing**: Secure password storage using Werkzeug
 - **Session Management**: Flask-Login for secure user sessions
-- **Role Verification**: Access control based on user permissions
-- **CSRF Protection**: Flask-WTF forms with CSRF tokens
-- **Input Validation**: Server-side validation for all user inputs
+- **Role Verification**: Strict access control based on permissions
+- **CSRF Protection**: Form security against cross-site attacks
 
-## 📊 Database Schema
+### Input Validation
+- **Server-Side Validation**: All user inputs validated
+- **Phone Number Formatting**: Ghana-specific phone validation
+- **SQL Injection Prevention**: Parameterized database queries
+- **File Upload Security**: Image validation and size limits
 
-### Core Tables:
+## 🌐 Technical Architecture
+
+### Backend Stack
+- **Framework**: Flask (Python)
+- **Database**: SQLite (development) / PostgreSQL (production)
+- **Authentication**: Flask-Login with role-based access
+- **Forms**: Flask-WTF + WTForms with validation
+- **File Handling**: Werkzeug with PIL for image processing
+
+### Frontend Technologies
+- **UI Framework**: Bootstrap 5 with custom CSS
+- **Icons**: Bootstrap Icons
+- **Typography**: Google Fonts (Poppins)
+- **Interactivity**: Vanilla JavaScript with AJAX
+- **Responsive Design**: Mobile-first approach
+
+### Database Schema
 - **Users**: Authentication and role management
-- **Branches**: Location information and contact details
+- **Branches**: Location information and settings
 - **Services**: Service catalog with pricing
+- **Customers**: Customer profiles and queue status
+- **Visit History**: Complete audit trail of services
 - **Barbers**: Staff assignments by branch
-- **Customers**: Queue entries with status tracking
-
-### Relationships:
-- Users → Branches (one-to-many)
-- Customers → Services (many-to-one)
-- Customers → Barbers (many-to-one)
-- Barbers → Branches (many-to-one)
 
 ## 🚀 Production Deployment
 
-### Security Checklist:
-- [ ] Change `SECRET_KEY` in app configuration
-- [ ] Update all default passwords
-- [ ] Use production database (PostgreSQL/MySQL)
-- [ ] Enable HTTPS
-- [ ] Set up proper logging
-- [ ] Configure backup strategy
+### Security Checklist
+- [ ] Update `SECRET_KEY` in application configuration
+- [ ] Change all default passwords for user accounts
+- [ ] Configure production database (PostgreSQL recommended)
+- [ ] Enable HTTPS with SSL certificates
+- [ ] Set up proper logging and monitoring
+- [ ] Configure automated backup strategy
+- [ ] Implement proper error handling
 
-### Environment Variables:
+### Environment Configuration
 ```bash
-export SECRET_KEY="your-super-secret-production-key"
-export DATABASE_URL="your-production-database-url"
+# Production environment variables
+export SECRET_KEY="your-production-secret-key-here"
+export DATABASE_URL="postgresql://user:password@localhost/trimq_production"
 export FLASK_ENV="production"
+export MAIL_SERVER="your-smtp-server.com"
+export MAIL_USERNAME="your-email@domain.com"
+export MAIL_PASSWORD="your-email-password"
 ```
 
-## 🛠️ Technical Stack
+### Performance Optimization
+- Use production WSGI server (Gunicorn recommended)
+- Configure reverse proxy (Nginx) for static file serving
+- Enable database connection pooling
+- Implement Redis for session storage
+- Set up CDN for static assets
 
-- **Backend**: Flask (Python)
-- **Database**: SQLite (development) / PostgreSQL (production)
-- **Frontend**: Bootstrap 5 + Custom CSS
-- **Authentication**: Flask-Login
-- **Forms**: Flask-WTF + WTForms
-- **Icons**: Bootstrap Icons
-- **Fonts**: Google Fonts (Poppins)
+## 📱 Mobile Integration
 
-## 📞 Support
+### Responsive Design
+- **Touch-Friendly**: Large buttons and touch targets
+- **Readable Text**: Optimized font sizes for mobile screens
+- **Fast Loading**: Optimized images and minimal JavaScript
+- **Offline Capability**: Service worker for basic offline functionality
 
-For technical support or customization requests:
-- Review the code comments for implementation details
-- Check Flask documentation for framework-specific questions
-- Customize templates in the `/templates` directory
-- Modify styling in the `base.html` template
+### Public Display Optimization
+- **Large Screen Support**: Optimized for TV displays in waiting areas
+- **Auto-Refresh**: Automatic updates without user intervention
+- **High Contrast**: Easy reading from distance
+- **Landscape Layout**: Optimized for wide screen displays
 
-## 📄 License
+## 🔧 Troubleshooting
 
-This project is designed for Ghanaian small businesses and can be freely adapted for commercial use.
+### Common Issues
+1. **Database Errors**: Check file permissions and restart application
+2. **Login Problems**: Verify credentials and check user status
+3. **Image Upload Issues**: Ensure upload folder permissions are correct
+4. **Email Not Working**: Configure SMTP settings in environment variables
+
+### Support Resources
+- Check application logs for detailed error information
+- Review Flask documentation for framework-specific issues
+- Consult Bootstrap documentation for UI customization
+- Contact system administrator for user account issues
+
+## 📄 License and Usage
+
+This TrimQ system is designed specifically for Ghanaian small businesses and can be freely adapted for commercial use. The system includes:
+
+- Complete source code with documentation
+- Sample data for immediate testing
+- Customizable branding and styling
+- Multi-language support capability (English + local languages)
+
+## 🤝 Contributing
+
+We welcome contributions from the Ghanaian tech community:
+
+- **Bug Reports**: Submit issues with detailed descriptions
+- **Feature Requests**: Suggest improvements for local business needs
+- **Code Contributions**: Submit pull requests with proper testing
+- **Documentation**: Help improve setup and usage guides
+- **Translations**: Add support for local Ghanaian languages
+
+## 📞 Support and Contact
+
+For technical support, customization requests, or business inquiries:
+
+- **Documentation**: Review included code comments and documentation
+- **Community**: Connect with other users in Ghana's tech community
+- **Customization**: Modify templates and styling for your brand
+- **Training**: Staff training materials included in documentation
 
 ---
 
 **Built with ❤️ for Ghanaian entrepreneurs**
 
-*TrimQ - Professional queue management for the modern barbershop*
+*TrimQ - Transforming traditional barbershops into modern, efficient businesses while preserving the community spirit that makes Ghanaian barber shops special.*
+
+---
+
+## 🎯 Quick Reference
+
+### Keyboard Shortcuts
+- **Alt + T**: Generate ticket for first waiting customer
+- **Alt + C**: Complete first in-progress service  
+- **Alt + R**: Refresh revenue data
+- **Alt + N**: Add new customer
+- **Ctrl + R**: Manual refresh (revenue reports)
+
+### API Endpoints
+- `/api/revenue/<branch_code>`: Real-time branch revenue
+- `/api/revenue/all`: Franchise-wide revenue (Master Admin)
+- `/api/customers`: Customer management endpoints
+- `/api/remove_customer/<id>`: Remove customer from queue
+
+### Default Ports and URLs
+- **Application**: http://localhost:5000
+- **Public Display**: /display/<branch_code>
+- **Admin Panel**: /settings
+- **Revenue Reports**: /revenue-report
