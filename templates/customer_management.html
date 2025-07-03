@@ -21,7 +21,7 @@
 
 <!-- Search and Filter -->
 <div class="row mb-4">
-    <div class="col-md-6">
+    <div class="col-md-8">
         <div class="card">
             <div class="card-body">
                 <form method="GET" class="d-flex align-items-end gap-3">
@@ -32,10 +32,23 @@
                                value="{{ search }}"
                                id="searchInput">
                     </div>
-                    <button type="submit" class="btn btn-barbers">
+                    {% if current_user.is_master_admin() %}
+                        <div class="col-auto">
+                            <label class="form-label fw-semibold">Filter by Branch</label>
+                            <select name="branch" class="form-select" id="branchFilter">
+                                <option value="">All Branches</option>
+                                {% for code, info in available_branches.items() %}
+                                    <option value="{{ code }}" {% if branch_filter == code %}selected{% endif %}>
+                                        {{ info.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary">
                         <i class="bi bi-search"></i> Search
                     </button>
-                    {% if search %}
+                    {% if search or branch_filter %}
                         <a href="{{ url_for('manage_customers') }}" class="btn btn-outline-secondary">
                             <i class="bi bi-x"></i> Clear
                         </a>
@@ -44,17 +57,24 @@
             </div>
         </div>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="card bg-info text-white">
             <div class="card-body text-center">
                 <h3 class="mb-1">{{ customers.total }}</h3>
                 <p class="mb-0">
-                    {% if search %}
-                        Search Results
+                    {% if search or branch_filter %}
+                        Filtered Results
+                    {% elif current_user.is_master_admin() %}
+                        Total Customers (All Branches)
                     {% else %}
-                        Total Customers
+                        {{ BRANCHES[current_user.branch].name }} Customers
                     {% endif %}
                 </p>
+                {% if current_user.is_master_admin() and branch_filter %}
+                    <small class="text-light">
+                        <i class="bi bi-shop"></i> {{ available_branches.get(branch_filter, {}).get('name', branch_filter) }}
+                    </small>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -708,6 +728,56 @@ function clearDraft(formId) {
     localStorage.removeItem(`${formId}_draft`);
 }
 
+// Auto-submit form when branch filter changes (Master Admin only)
+document.addEventListener('DOMContentLoaded', function() {
+    const branchFilter = document.getElementById('branchFilter');
+    if (branchFilter) {
+        branchFilter.addEventListener('change', function() {
+            // Preserve search term when changing branch filter
+            const searchInput = document.getElementById('searchInput');
+            const form = this.closest('form');
+            form.submit();
+        });
+    }
+    // Update URL params when filtering
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('branch') || urlParams.get('search')) {
+        // Add visual indicator that filters are active
+        const filterCard = document.querySelector('.card');
+        if (filterCard) {
+            filterCard.classList.add('border-primary');
+        }
+    }
+});
+
+// Quick branch filter buttons for Master Admin
+function addQuickFilters() {
+    const searchCard = document.querySelector('.card .card-body');
+    if (searchCard && {{ current_user.is_master_admin()|tojson }}) {
+        const quickFiltersHtml = `
+            <div class="mt-3 pt-3 border-top">
+                <small class="text-muted fw-semibold d-block mb-2">Quick Filters:</small>
+                <div class="btn-group btn-group-sm" role="group">
+                    <a href="?branch=" class="btn btn-outline-secondary ${!'{{ branch_filter }}' ? 'active' : ''}">
+                        All Branches
+                    </a>
+                    {% for code, info in available_branches.items() %}
+                        <a href="?branch={{ code }}{% if search %}&search={{ search }}{% endif %}" 
+                           class="btn btn-outline-primary ${'{{ branch_filter }}' === '{{ code }}' ? 'active' : ''}">
+                            {{ info.name }}
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+        `;
+        searchCard.insertAdjacentHTML('beforeend', quickFiltersHtml);
+    }
+}
+
+// Initialize quick filters
+addQuickFilters();
+
+
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     setupAutoSave();
@@ -884,6 +954,43 @@ document.addEventListener('DOMContentLoaded', function() {
 #editPhotoPreview img {
     border: 3px solid var(--primary-color);
     border-radius: 8px;
+}
+
+/* Filter indicators */
+.border-primary {
+    border-color: var(--primary-color) !important;
+    border-width: 2px !important;
+}
+
+.btn-group-sm .btn.active {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.quick-filters {
+    background: rgba(37, 99, 235, 0.05);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+/* Branch filter dropdown styling */
+#branchFilter {
+    min-width: 150px;
+}
+
+/* Mobile responsive filters */
+@media (max-width: 768px) {
+    .btn-group-sm {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .btn-group-sm .btn {
+        width: 100%;
+        margin-bottom: 0.25rem;
+    }
 }
 </style>
 {% endblock %}
