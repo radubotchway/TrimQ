@@ -423,14 +423,32 @@
         textarea {
             transition: all 0.3s ease;
         }
+
+        /* Logo styling */
+        .navbar-logo {
+            height: 35px;
+            width: auto;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-logo:hover {
+            transform: scale(1.05);
+        }
+
+        @media (max-width: 768px) {
+            .navbar-logo {
+                height: 28px;
+            }
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
     <nav class="navbar navbar-expand-lg">
         <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="bi bi-scissors"></i> TrimQ
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+                <img src="/static/images/logo.png" alt="TrimQ" class="navbar-logo me-2">
+                TrimQ
             </a>
             
             {% if current_user.is_authenticated %}
