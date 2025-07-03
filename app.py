@@ -1843,15 +1843,22 @@ def re_add_customer(branch_code):
 def manage_customers():
     """Customer database management page"""
     search = request.args.get('search', '').strip()
+    branch_filter = request.args.get('branch', '').strip()
     page = request.args.get('page', 1, type=int)
     per_page = 12  # Number of customers per page
     
-    # Build query based on user role
+    # Build base query based on user role
     if current_user.is_master_admin():
+        # Master admin can see all customers
         query = Customer.query
+        
+        # Apply branch filter if specified
+        if branch_filter:
+            # Filter by customers who have visited the specified branch
+            query = query.filter(Customer.branch == branch_filter)
     else:
-        # Branch admins can see all customers but primarily those who visited their branch
-        query = Customer.query
+        # Branch admins can only see customers who have visited their branch
+        query = Customer.query.filter(Customer.branch == current_user.branch)
     
     # Apply search filter
     if search:
@@ -1876,9 +1883,14 @@ def manage_customers():
         error_out=False
     )
     
+    # Get branches for filter dropdown (master admin only)
+    available_branches = get_branches_dict() if current_user.is_master_admin() else {}
+    
     return render_template('customer_management.html',
                          customers=customers,
-                         search=search)
+                         search=search,
+                         branch_filter=branch_filter,
+                         available_branches=available_branches)
 
 @app.route('/api/customers', methods=['POST'])
 @login_required
@@ -1905,7 +1917,7 @@ def api_add_customer():
         # Handle photo upload
         photo_file = request.files.get('photo')
         
-        # Create new customer
+        # Create new customer with current user's branch
         customer = Customer(
             name=name,
             phone=phone,
@@ -1913,7 +1925,8 @@ def api_add_customer():
             address=address if address else None,
             notes=notes if notes else None,
             status='registered',
-            total_visits=0
+            total_visits=0,
+            branch=current_user.branch  # Set the branch when creating customer
         )
         
         db.session.add(customer)
@@ -1936,6 +1949,7 @@ def api_add_customer():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+    
 
 @app.route('/api/customers/<int:customer_id>')
 @login_required
@@ -2168,6 +2182,28 @@ def cleanup_expired_resets():
     db.session.commit()
     return len(expired)
 
+def update_existing_customers_branch():
+    """Update existing customers without branch information"""
+    try:
+        customers_without_branch = Customer.query.filter(
+            db.or_(Customer.branch.is_(None), Customer.branch == '')
+        ).all()
+        
+        if customers_without_branch:
+            print(f"Found {len(customers_without_branch)} customers without branch information")
+            
+            # For now, assign them to 'main' branch, but you could implement logic
+            # to assign based on their service history or ask admin to assign manually
+            for customer in customers_without_branch:
+                customer.branch = 'main'  # or prompt for branch assignment
+            
+            db.session.commit()
+            print(f"Updated {len(customers_without_branch)} customer records")
+        
+    except Exception as e:
+        print(f"Error updating customer branches: {e}")
+        db.session.rollback()
+
 # ============================================================================
 # INITIALIZATION
 # ============================================================================
@@ -2251,7 +2287,8 @@ if __name__ == '__main__':
         migrate_database()
         migrate_customer_database()  # New customer migration function
         create_sample_data()
-        
+        update_existing_customers_branch()
+
         try:
             expired_count = cleanup_expired_resets()
             if expired_count > 0:
