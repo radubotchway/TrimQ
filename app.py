@@ -4,12 +4,19 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_wtf import FlaskForm
 from wtforms import StringField, SelectField, SubmitField, TextAreaField, PasswordField, IntegerField, FloatField
-from wtforms.validators import DataRequired, Length, Email, EqualTo
+from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError  # Added ValidationError
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta, date
 from sqlalchemy import func, and_
+from sqlalchemy.exc import PendingRollbackError, IntegrityError, SQLAlchemyError  # Added these
 import secrets
 import os
+from werkzeug.utils import secure_filename
+from werkzeug.datastructures import FileStorage
+import uuid
+from PIL import Image
+import io
+from contextlib import contextmanager  # Added this for db_transaction
 
 load_dotenv()  # Load environment variables from .env file
 
@@ -18,6 +25,10 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///trimq_franchise.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'static/uploads/customers'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Email configuration (optional - can be configured later)
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -32,6 +43,196 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+# Add this error handler to your Flask app (add at the top level of app.py)
+
+from sqlalchemy.exc import PendingRollbackError, IntegrityError, SQLAlchemyError
+
+@app.errorhandler(PendingRollbackError)
+def handle_pending_rollback_error(e):
+    """Handle SQLAlchemy PendingRollbackError"""
+    db.session.rollback()
+    flash('A database transaction error occurred. Please try your operation again.', 'error')
+    return redirect(request.url)
+
+@app.errorhandler(IntegrityError)
+def handle_integrity_error(e):
+    """Handle SQLAlchemy IntegrityError"""
+    db.session.rollback()
+    flash('A database constraint error occurred. Please check your data and try again.', 'error')
+    return redirect(request.url)
+
+@app.errorhandler(SQLAlchemyError)
+def handle_sqlalchemy_error(e):
+    """Handle general SQLAlchemy errors"""
+    db.session.rollback()
+    flash('A database error occurred. Please try again.', 'error')
+    return redirect(request.url)
+
+# Database session management context manager
+from contextlib import contextmanager
+
+@contextmanager
+def db_transaction():
+    """Context manager for database transactions with proper error handling"""
+    try:
+        yield db.session
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Database transaction failed: {e}")
+        raise
+    finally:
+        # Session will be closed by Flask-SQLAlchemy automatically
+        pass
+
+
+# Database initialization with better error handling
+def init_database_with_error_handling():
+    """Initialize database with proper error handling"""
+    try:
+        with app.app_context():
+            # Create all tables
+            db.create_all()
+            
+            # Run migrations
+            migrate_database()
+            migrate_customer_database()
+            
+            # Create sample data
+            create_sample_data()
+            
+            # Cleanup expired tokens
+            try:
+                expired_count = cleanup_expired_resets()
+                if expired_count > 0:
+                    print(f"Cleaned up {expired_count} expired password reset tokens")
+            except Exception as e:
+                print(f"Could not clean up expired tokens: {e}")
+            
+            print("✅ TrimQ System Ready!")
+            
+    except Exception as e:
+        print(f"❌ Database initialization failed: {e}")
+        print("🔧 Trying to recover...")
+        
+        try:
+            # Try to rollback any pending transactions
+            db.session.rollback()
+            print("✅ Rolled back pending transactions")
+        except Exception as rollback_error:
+            print(f"❌ Could not rollback: {rollback_error}")
+        
+        raise
+
+# Fixed form validation in the template context
+def validate_form_data(form_data):
+    """Validate form data before processing"""
+    errors = []
+    
+    if not form_data.get('name', '').strip():
+        errors.append("Customer name is required")
+    
+    if not form_data.get('phone', '').strip():
+        errors.append("Phone number is required")
+    
+    service_id = form_data.get('service_id')
+    if not service_id or service_id == '0':
+        errors.append("Please select a service")
+    else:
+        try:
+            service_id = int(service_id)
+            service = Service.query.filter_by(id=service_id, is_active=True).first()
+            if not service:
+                errors.append("Selected service is not available")
+        except (ValueError, TypeError):
+            errors.append("Invalid service selection")
+    
+    return errors
+
+# Usage example in routes:
+"""
+@app.route('/add/<branch_code>', methods=['GET', 'POST'])
+@login_required
+def add_customer_with_better_handling(branch_code=None):
+    if not branch_code:
+        branch_code = current_user.branch
+    
+    if not current_user.is_master_admin() and current_user.branch != branch_code:
+        flash('Access denied.', 'error')
+        return redirect(url_for('index'))
+    
+    form = CustomerFormFixed()
+    
+    if form.validate_on_submit():
+        # Validate form data first
+        validation_errors = validate_form_data(request.form)
+        if validation_errors:
+            for error in validation_errors:
+                flash(error, 'error')
+            return render_template('add_customer.html', 
+                                form=form, 
+                                branch_code=branch_code, 
+                                branch_info=get_branches_dict().get(branch_code, {}))
+        
+        try:
+            with db_transaction():
+                # Get or create customer
+                customer, is_new = get_or_create_customer_fixed(
+                    phone=form.phone.data.strip(),
+                    name=form.name.data.strip()
+                )
+                
+                # Add to queue
+                customer.add_to_queue(
+                    service_id=int(form.service_id.data),
+                    branch_code=branch_code,
+                    notes=form.notes.data.strip() if form.notes.data else None
+                )
+                
+                # Create visit record
+                visit = CustomerVisit(
+                    customer_id=customer.id,
+                    service_id=customer.service_id,
+                    branch=branch_code,
+                    notes=customer.notes
+                )
+                db.session.add(visit)
+                
+                success_message = f'{customer.name} added to queue!'
+                if is_new:
+                    success_message += ' (New customer created)'
+                
+                flash(success_message, 'success')
+                
+                # Handle ticket printing
+                if request.form.get('print_ticket'):
+                    return redirect(url_for('print_ticket', customer_id=customer.id))
+                else:
+                    return redirect(url_for('add_customer', 
+                                          branch_code=branch_code, 
+                                          customer_added='true', 
+                                          customer_id=customer.id))
+                                          
+        except ValueError as ve:
+            flash(str(ve), 'error')
+        except Exception as e:
+            print(f"Unexpected error in add_customer: {e}")
+            flash('An unexpected error occurred. Please try again.', 'error')
+    
+    # Handle validation errors
+    elif form.errors:
+        for field, errors in form.errors.items():
+            for error in errors:
+                flash(f"{getattr(form, field).label.text}: {error}", 'error')
+    
+    branches_dict = get_branches_dict()
+    return render_template('add_customer.html', 
+                         form=form, 
+                         branch_code=branch_code, 
+                         branch_info=branches_dict.get(branch_code, {}))
+"""
+
 
 # ============================================================================
 # MODELS
@@ -77,18 +278,100 @@ class Barber(db.Model):
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    phone = db.Column(db.String(20), nullable=False)
-    service_id = db.Column(db.Integer, db.ForeignKey('service.id'), nullable=False)
-    status = db.Column(db.String(20), default='waiting')
-    barber_id = db.Column(db.Integer, db.ForeignKey('barber.id'))
-    branch = db.Column(db.String(100), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    assigned_at = db.Column(db.DateTime)
-    completed_at = db.Column(db.DateTime)
+    phone = db.Column(db.String(20), nullable=False, index=True)  # Added index for faster lookups
+    email = db.Column(db.String(120), nullable=True)
+    address = db.Column(db.Text, nullable=True)
+    photo_filename = db.Column(db.String(255), nullable=True)
     notes = db.Column(db.Text)
-
+    
+    # Queue-specific fields (for current visit)
+    service_id = db.Column(db.Integer, db.ForeignKey('service.id'), nullable=True)
+    status = db.Column(db.String(20), default='registered')  # registered, waiting, assigned, completed
+    barber_id = db.Column(db.Integer, db.ForeignKey('barber.id'), nullable=True)
+    branch = db.Column(db.String(100), nullable=True)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # First registration
+    last_visit = db.Column(db.DateTime, nullable=True)  # Last visit date
+    assigned_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Customer metrics
+    total_visits = db.Column(db.Integer, default=0)
+    
+    # Relationships
     service = db.relationship('Service', backref='customers')
     barber = db.relationship('Barber', backref='customers')
+    
+    def __repr__(self):
+        return f'<Customer {self.name}>'
+    
+    def get_photo_url(self):
+        """Get the URL for customer photo"""
+        if self.photo_filename:
+            return f'/static/uploads/customers/{self.photo_filename}'
+        return None
+    
+    def add_to_queue(self, service_id, branch_code, notes=None):
+        """Add this customer to the queue for a service with comprehensive validation"""
+        
+        # Validate inputs
+        if not service_id:
+            raise ValueError("Service ID is required")
+        
+        if not branch_code:
+            raise ValueError("Branch code is required")
+        
+        # Verify the service exists and is active
+        service = Service.query.filter_by(id=service_id, is_active=True).first()
+        if not service:
+            raise ValueError("Invalid service selected or service is not available")
+        
+        # Verify the branch exists
+        branch = Branch.query.filter_by(code=branch_code, is_active=True).first()
+        if not branch:
+            raise ValueError("Invalid branch selected")
+        
+        # Check if customer is already in an active queue
+        if self.status in ['waiting', 'assigned']:
+            if self.branch == branch_code:
+                raise ValueError(f"Customer is already in the queue for {branch.name}")
+            else:
+                # Customer is in queue for different branch
+                existing_branch = Branch.query.filter_by(code=self.branch).first()
+                existing_branch_name = existing_branch.name if existing_branch else self.branch
+                raise ValueError(f"Customer is currently in queue for {existing_branch_name}. Please complete or cancel that service first.")
+        
+        # Set queue information
+        self.service_id = service_id
+        self.branch = branch_code
+        self.status = 'waiting'
+        self.notes = notes
+        self.last_visit = datetime.utcnow()
+        self.total_visits += 1
+        
+        # Clear any previous assignment data
+        self.barber_id = None
+        self.assigned_at = None
+        self.completed_at = None
+
+# Added a new model for customer visit history
+class CustomerVisit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
+    service_id = db.Column(db.Integer, db.ForeignKey('service.id'), nullable=False)
+    barber_id = db.Column(db.Integer, db.ForeignKey('barber.id'), nullable=True)
+    branch = db.Column(db.String(100), nullable=False)
+    
+    visit_date = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    price_paid = db.Column(db.Float, nullable=True)
+    notes = db.Column(db.Text)
+    
+    # Relationships
+    customer = db.relationship('Customer', backref='visit_history')
+    service = db.relationship('Service')
+    barber = db.relationship('Barber')
 
 class PasswordReset(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -122,14 +405,23 @@ class LoginForm(FlaskForm):
 class CustomerForm(FlaskForm):
     name = StringField('Customer Name', validators=[DataRequired(), Length(max=100)])
     phone = StringField('Phone Number', validators=[DataRequired(), Length(max=20)])
-    service_id = SelectField('Select Service', coerce=int, validators=[DataRequired()])
+    service_id = SelectField('Select Service', coerce=int, validators=[DataRequired(message="Please select a service")])
     notes = TextAreaField('Special Notes (Optional)')
     submit = SubmitField('Add to Queue')
 
     def __init__(self, *args, **kwargs):
         super(CustomerForm, self).__init__(*args, **kwargs)
-        services = Service.query.order_by('name').all()
-        self.service_id.choices = [(s.id, f"{s.name} ({s.duration} min • GH₵{s.price:.0f})") for s in services]
+        try:
+            services = Service.query.filter_by(is_active=True).order_by('name').all()
+            # Add a default empty option that will force validation
+            self.service_id.choices = [(0, "Choose a service...")] + [(s.id, f"{s.name} ({s.duration} min • GH₵{s.price:.0f})") for s in services]
+        except Exception as e:
+            print(f"Error loading services: {e}")
+            self.service_id.choices = [(0, "Error loading services")]
+    
+    def validate_service_id(self, field):
+        if field.data == 0 or not field.data:
+            raise ValidationError('Please select a service.')
 
 class ForgotPasswordForm(FlaskForm):
     email = StringField('Email Address', validators=[DataRequired(), Email()])
@@ -481,6 +773,103 @@ def inject_helpers():
         'BRANCHES': get_branches_dict()
     }
 
+def allowed_file(filename):
+    """Check if uploaded file has allowed extension"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+def save_customer_photo(file, customer_id=None):
+    """Save uploaded customer photo and return filename"""
+    if file and allowed_file(file.filename):
+        # Generate unique filename
+        file_extension = file.filename.rsplit('.', 1)[1].lower()
+        if customer_id:
+            filename = f"customer_{customer_id}_{uuid.uuid4().hex[:8]}.{file_extension}"
+        else:
+            filename = f"customer_{uuid.uuid4().hex}.{file_extension}"
+        
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        # Resize and save image
+        try:
+            image = Image.open(file)
+            # Resize to max 400x400 while maintaining aspect ratio
+            image.thumbnail((400, 400), Image.Resampling.LANCZOS)
+            
+            # Convert RGBA to RGB if necessary
+            if image.mode == 'RGBA':
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                background.paste(image, mask=image.split()[-1])
+                image = background
+            
+            image.save(filepath, optimize=True, quality=85)
+            return filename
+        except Exception as e:
+            print(f"Error saving image: {e}")
+            return None
+    return None
+
+def delete_customer_photo(filename):
+    """Delete customer photo file"""
+    if filename:
+        try:
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        except Exception as e:
+            print(f"Error deleting photo: {e}")
+
+def get_or_create_customer(phone, name=None, email=None, address=None, photo_file=None):
+    """Get existing customer by phone or create new one"""
+    customer = Customer.query.filter_by(phone=phone).first()
+    
+    if customer:
+        # Update existing customer info if provided
+        if name and name.strip():
+            customer.name = name.strip()
+        if email and email.strip():
+            customer.email = email.strip()
+        if address and address.strip():
+            customer.address = address.strip()
+        
+        # Handle photo update
+        if photo_file:
+            # Delete old photo if exists
+            if customer.photo_filename:
+                delete_customer_photo(customer.photo_filename)
+            
+            # Save new photo
+            filename = save_customer_photo(photo_file, customer.id)
+            if filename:
+                customer.photo_filename = filename
+        
+        db.session.commit()
+        return customer, False  # False = not newly created
+    else:
+        # Create new customer
+        if not name or not name.strip():
+            raise ValueError("Name is required for new customers")
+        
+        customer = Customer(
+            name=name.strip(),
+            phone=phone.strip(),
+            email=email.strip() if email else None,
+            address=address.strip() if address else None,
+            status='registered'
+        )
+        
+        db.session.add(customer)
+        db.session.flush()  # Get the ID before saving photo
+        
+        # Handle photo
+        if photo_file:
+            filename = save_customer_photo(photo_file, customer.id)
+            if filename:
+                customer.photo_filename = filename
+        
+        db.session.commit()
+        return customer, True  # True = newly created
+
 # ============================================================================
 # ROUTES
 # ============================================================================
@@ -654,65 +1043,136 @@ def add_customer(branch_code=None):
     
     form = CustomerForm()
     
-    # Pre-fill form with query parameters if provided (for quick re-adding)
-    if request.method == 'GET':
-        phone = request.args.get('phone', '')
-        name = request.args.get('name', '')
-        if phone:
+    # Pre-fill form with query parameters if provided (for existing customers)
+    phone = request.args.get('phone', '')
+    name = request.args.get('name', '')
+    
+    if request.method == 'GET' and phone:
+        # Try to find existing customer
+        existing_customer = Customer.query.filter_by(phone=phone).first()
+        if (existing_customer):
+            form.name.data = existing_customer.name
+            form.phone.data = existing_customer.phone
+            flash(f'Found existing customer: {existing_customer.name}', 'info')
+        else:
             form.phone.data = phone
-        if name:
-            form.name.data = name
+            if name:
+                form.name.data = name
     
     if form.validate_on_submit():
-        # Check for duplicate customers (same phone number in waiting status)
-        existing_customer = Customer.query.filter_by(
-            phone=form.phone.data,
-            branch=branch_code,
-            status='waiting'
-        ).first()
-        
-        if existing_customer:
-            flash(f'Customer with phone {form.phone.data} is already in the waiting queue as "{existing_customer.name}".', 'warning')
-            return render_template('add_customer.html', 
-                                 form=form, 
-                                 branch_code=branch_code, 
-                                 branch_info=get_branches_dict().get(branch_code, {}))
-        
-        customer = Customer(
-            name=form.name.data,
-            phone=form.phone.data,
-            service_id=form.service_id.data,
-            branch=branch_code,
-            notes=form.notes.data
-        )
-        db.session.add(customer)
-        db.session.commit()
-        
-        # Log the action
-        log_customer_action(customer.id, 'added', current_user.id, {
-            'name': customer.name,
-            'phone': customer.phone,
-            'service': customer.service.name,
-            'branch': branch_code
-        })
-        
-        print_ticket_option = request.form.get('print_ticket')
-        if print_ticket_option:
-            flash(f'{customer.name} added to queue!', 'success')
-            return redirect(url_for('print_ticket', customer_id=customer.id))
-        else:
-            flash(f'{customer.name} added to queue!', 'success')
-            # Redirect back to add customer page with success parameters for undo functionality
-            return redirect(url_for('add_customer', 
-                                  branch_code=branch_code, 
-                                  customer_added='true', 
-                                  customer_id=customer.id))
+        try:
+            # Validate that service_id is not None or empty
+            if not form.service_id.data:
+                flash('Please select a service.', 'error')
+                return render_template('add_customer.html', 
+                                    form=form, 
+                                    branch_code=branch_code, 
+                                    branch_info=get_branches_dict().get(branch_code, {}))
+            
+            # Get or create customer
+            customer, is_new = get_or_create_customer(
+                phone=form.phone.data,
+                name=form.name.data
+            )
+            
+            # Check if customer is already in queue for this branch
+            if customer.status == 'waiting' and customer.branch == branch_code:
+                branches_dict = get_branches_dict()
+                branch_name = branches_dict.get(branch_code, {}).get('name', branch_code)
+                flash(f'{customer.name} is already in the waiting queue for {branch_name}.', 'warning')
+                return render_template('add_customer.html', 
+                                    form=form, 
+                                    branch_code=branch_code, 
+                                    branch_info=branches_dict.get(branch_code, {}))
+            
+            # Add to queue with proper error handling
+            try:
+                customer.add_to_queue(form.service_id.data, branch_code, form.notes.data)
+                db.session.commit()
+                
+                # Create visit record
+                visit = CustomerVisit(
+                    customer_id=customer.id,
+                    service_id=form.service_id.data,
+                    branch=branch_code,
+                    notes=form.notes.data
+                )
+                db.session.add(visit)
+                db.session.commit()
+                
+                # Log the action
+                action = 'added_existing' if not is_new else 'added_new'
+                log_customer_action(customer.id, action, current_user.id, {
+                    'name': customer.name,
+                    'phone': customer.phone,
+                    'service': customer.service.name,
+                    'branch': branch_code,
+                    'is_new_customer': is_new
+                })
+                
+                success_message = f'{customer.name} added to queue!'
+                if is_new:
+                    success_message += ' (New customer created)'
+                
+                # Handle ticket printing
+                print_ticket_option = request.form.get('print_ticket')
+                if print_ticket_option:
+                    flash(success_message, 'success')
+                    return redirect(url_for('print_ticket', customer_id=customer.id))
+                else:
+                    flash(success_message, 'success')
+                    return redirect(url_for('add_customer', 
+                                          branch_code=branch_code, 
+                                          customer_added='true', 
+                                          customer_id=customer.id))
+                                          
+            except Exception as db_error:
+                # Rollback the transaction to clear the pending rollback state
+                db.session.rollback()
+                print(f"Database error: {db_error}")
+                flash(f'Database error: Could not add customer to queue. Please try again.', 'error')
+                
+        except ValueError as ve:
+            # Handle validation errors
+            db.session.rollback()
+            flash(str(ve), 'error')
+        except Exception as e:
+            # Handle any other unexpected errors
+            db.session.rollback()
+            print(f"Unexpected error in add_customer: {e}")
+            flash(f'Error adding customer: Please try again or contact support.', 'error')
     
     branches_dict = get_branches_dict()
     return render_template('add_customer.html', 
                          form=form, 
                          branch_code=branch_code, 
                          branch_info=branches_dict.get(branch_code, {}))
+
+# Also fix the add_to_queue method to ensure proper validation
+def add_to_queue_fixed(self, service_id, branch_code, notes=None):
+    """Add this customer to the queue for a service with proper validation"""
+    if not service_id:
+        raise ValueError("Service ID is required")
+    
+    # Verify the service exists
+    service = Service.query.get(service_id)
+    if not service:
+        raise ValueError("Invalid service selected")
+    
+    self.service_id = service_id
+    self.branch = branch_code
+    self.status = 'waiting'
+    self.notes = notes
+    self.last_visit = datetime.utcnow()
+    self.total_visits += 1
+    
+    # Clear any previous queue data
+    self.barber_id = None
+    self.assigned_at = None
+    self.completed_at = None
+
+# Add this to the Customer class
+Customer.add_to_queue = add_to_queue_fixed
 
 @app.route('/queue/<branch_code>')
 @login_required
@@ -1396,6 +1856,257 @@ def re_add_customer(branch_code):
                          branch_info=get_branches_dict().get(branch_code, {}),
                          is_re_add=True,
                          original_data={'name': name, 'phone': phone, 'service': service_name})
+
+@app.route('/customers')
+@login_required
+def manage_customers():
+    """Customer database management page"""
+    search = request.args.get('search', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 12  # Number of customers per page
+    
+    # Build query based on user role
+    if current_user.is_master_admin():
+        query = Customer.query
+    else:
+        # Branch admins can see all customers but primarily those who visited their branch
+        query = Customer.query
+    
+    # Apply search filter
+    if search:
+        search_filter = f"%{search}%"
+        query = query.filter(
+            db.or_(
+                Customer.name.ilike(search_filter),
+                Customer.phone.ilike(search_filter),
+                Customer.email.ilike(search_filter)
+            )
+        )
+    
+    # Order by most recent activity
+    query = query.order_by(
+        Customer.last_visit.desc().nullslast(),
+        Customer.created_at.desc()
+    )
+    
+    customers = query.paginate(
+        page=page, 
+        per_page=per_page, 
+        error_out=False
+    )
+    
+    return render_template('customer_management.html',
+                         customers=customers,
+                         search=search)
+
+@app.route('/api/customers', methods=['POST'])
+@login_required
+def api_add_customer():
+    """API endpoint to add a new customer"""
+    try:
+        name = request.form.get('name', '').strip()
+        phone = request.form.get('phone', '').strip()
+        email = request.form.get('email', '').strip()
+        address = request.form.get('address', '').strip()
+        notes = request.form.get('notes', '').strip()
+        
+        if not name or not phone:
+            return jsonify({'success': False, 'message': 'Name and phone are required'}), 400
+        
+        # Check for existing customer with same phone
+        existing = Customer.query.filter_by(phone=phone).first()
+        if existing:
+            return jsonify({
+                'success': False, 
+                'message': f'Customer with phone {phone} already exists as "{existing.name}"'
+            }), 400
+        
+        # Handle photo upload
+        photo_file = request.files.get('photo')
+        
+        # Create new customer
+        customer = Customer(
+            name=name,
+            phone=phone,
+            email=email if email else None,
+            address=address if address else None,
+            notes=notes if notes else None,
+            status='registered',
+            total_visits=0
+        )
+        
+        db.session.add(customer)
+        db.session.flush()  # Get the ID
+        
+        # Handle photo upload
+        if photo_file and photo_file.filename:
+            filename = save_customer_photo(photo_file, customer.id)
+            if filename:
+                customer.photo_filename = filename
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Customer "{name}" added successfully',
+            'customer_id': customer.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/customers/<int:customer_id>')
+@login_required
+def api_get_customer(customer_id):
+    """API endpoint to get customer details"""
+    try:
+        customer = Customer.query.get_or_404(customer_id)
+        
+        return jsonify({
+            'success': True,
+            'customer': {
+                'id': customer.id,
+                'name': customer.name,
+                'phone': customer.phone,
+                'email': customer.email,
+                'address': customer.address,
+                'notes': customer.notes,
+                'photo_filename': customer.photo_filename,
+                'total_visits': customer.total_visits,
+                'last_visit': customer.last_visit.isoformat() if customer.last_visit else None,
+                'created_at': customer.created_at.isoformat()
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/customers/<int:customer_id>', methods=['PUT'])
+@login_required
+def api_update_customer(customer_id):
+    """API endpoint to update customer details"""
+    try:
+        customer = Customer.query.get_or_404(customer_id)
+        
+        name = request.form.get('name', '').strip()
+        phone = request.form.get('phone', '').strip()
+        email = request.form.get('email', '').strip()
+        address = request.form.get('address', '').strip()
+        notes = request.form.get('notes', '').strip()
+        
+        if not name or not phone:
+            return jsonify({'success': False, 'message': 'Name and phone are required'}), 400
+        
+        # Check for phone conflicts
+        existing = Customer.query.filter(
+            Customer.phone == phone,
+            Customer.id != customer.id
+        ).first()
+        
+        if existing:
+            return jsonify({
+                'success': False, 
+                'message': f'Phone number {phone} is already used by "{existing.name}"'
+            }), 400
+        
+        # Update basic info
+        customer.name = name
+        customer.phone = phone
+        customer.email = email if email else None
+        customer.address = address if address else None
+        customer.notes = notes if notes else None
+        
+        # Handle photo upload
+        photo_file = request.files.get('photo')
+        if photo_file and photo_file.filename:
+            # Delete old photo
+            if customer.photo_filename:
+                delete_customer_photo(customer.photo_filename)
+            
+            # Save new photo
+            filename = save_customer_photo(photo_file, customer.id)
+            if filename:
+                customer.photo_filename = filename
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Customer "{name}" updated successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/customers/<int:customer_id>', methods=['DELETE'])
+@login_required
+def api_delete_customer(customer_id):
+    """API endpoint to delete a customer"""
+    try:
+        customer = Customer.query.get_or_404(customer_id)
+        
+        # Check if customer has active queue entries
+        if customer.status in ['waiting', 'assigned']:
+            return jsonify({
+                'success': False,
+                'message': 'Cannot delete customer - they are currently in queue'
+            }), 400
+        
+        customer_name = customer.name
+        
+        # Delete photo file if exists
+        if customer.photo_filename:
+            delete_customer_photo(customer.photo_filename)
+        
+        # Delete customer record
+        db.session.delete(customer)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Customer "{customer_name}" deleted successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/customers/search')
+@login_required
+def api_search_customers():
+    """API endpoint to search customers (for autocomplete, etc.)"""
+    try:
+        query = request.args.get('q', '').strip()
+        limit = request.args.get('limit', 10, type=int)
+        
+        if not query or len(query) < 2:
+            return jsonify({'customers': []})
+        
+        search_filter = f"%{query}%"
+        customers = Customer.query.filter(
+            db.or_(
+                Customer.name.ilike(search_filter),
+                Customer.phone.ilike(search_filter)
+            )
+        ).limit(limit).all()
+        
+        results = []
+        for customer in customers:
+            results.append({
+                'id': customer.id,
+                'name': customer.name,
+                'phone': customer.phone,
+                'email': customer.email,
+                'total_visits': customer.total_visits,
+                'last_visit': customer.last_visit.strftime('%Y-%m-%d') if customer.last_visit else None
+            })
+        
+        return jsonify({'customers': results})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 # ============================================================================
 # UTILITY FUNCTIONS FOR MAINTENANCE
 # ============================================================================
@@ -1422,6 +2133,47 @@ def migrate_database():
     except Exception as e:
         print(f"Migration error: {e}")
         print("⚠️  You may need to delete the database file and restart")
+
+def migrate_customer_database():
+    """Migrate existing customer data to new schema"""
+    try:
+        with db.engine.connect() as conn:
+            # Check if columns exist and add them if missing
+            result = conn.execute(db.text("PRAGMA table_info(customer)"))
+            columns = [row[1] for row in result.fetchall()]
+            
+            migrations = []
+            if 'email' not in columns:
+                migrations.append("ALTER TABLE customer ADD COLUMN email VARCHAR(120)")
+            if 'address' not in columns:
+                migrations.append("ALTER TABLE customer ADD COLUMN address TEXT")
+            if 'photo_filename' not in columns:
+                migrations.append("ALTER TABLE customer ADD COLUMN photo_filename VARCHAR(255)")
+            if 'last_visit' not in columns:
+                migrations.append("ALTER TABLE customer ADD COLUMN last_visit DATETIME")
+            if 'total_visits' not in columns:
+                migrations.append("ALTER TABLE customer ADD COLUMN total_visits INTEGER DEFAULT 0")
+            
+            for migration in migrations:
+                try:
+                    conn.execute(db.text(migration))
+                    conn.commit()
+                    print(f"✅ Executed: {migration}")
+                except Exception as e:
+                    print(f"⚠️  Migration failed: {migration} - {e}")
+            
+            # Update existing customers
+            if migrations:
+                conn.execute(db.text("""
+                    UPDATE customer 
+                    SET total_visits = 1, last_visit = created_at 
+                    WHERE total_visits IS NULL OR total_visits = 0
+                """))
+                conn.commit()
+                print("✅ Updated existing customer visit counts")
+                
+    except Exception as e:
+        print(f"Migration error: {e}")
 
 def cleanup_expired_resets():
     """Remove expired password reset tokens"""
@@ -1516,6 +2268,7 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         migrate_database()
+        migrate_customer_database()  # New customer migration function
         create_sample_data()
         
         try:
