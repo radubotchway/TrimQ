@@ -843,10 +843,9 @@ def get_or_create_customer(phone, name=None, email=None, address=None, photo_fil
             if filename:
                 customer.photo_filename = filename
         
-        db.session.commit()
         return customer, False  # False = not newly created
     else:
-        # Create new customer
+        # Create new customer WITHOUT service_id (it will be set in add_to_queue)
         if not name or not name.strip():
             raise ValueError("Name is required for new customers")
         
@@ -856,6 +855,7 @@ def get_or_create_customer(phone, name=None, email=None, address=None, photo_fil
             email=email.strip() if email else None,
             address=address.strip() if address else None,
             status='registered'
+            # Don't set service_id, branch, or queue-related fields here
         )
         
         db.session.add(customer)
@@ -867,7 +867,6 @@ def get_or_create_customer(phone, name=None, email=None, address=None, photo_fil
             if filename:
                 customer.photo_filename = filename
         
-        db.session.commit()
         return customer, True  # True = newly created
 
 # ============================================================================
@@ -1148,31 +1147,6 @@ def add_customer(branch_code=None):
                          branch_code=branch_code, 
                          branch_info=branches_dict.get(branch_code, {}))
 
-# Also fix the add_to_queue method to ensure proper validation
-def add_to_queue_fixed(self, service_id, branch_code, notes=None):
-    """Add this customer to the queue for a service with proper validation"""
-    if not service_id:
-        raise ValueError("Service ID is required")
-    
-    # Verify the service exists
-    service = Service.query.get(service_id)
-    if not service:
-        raise ValueError("Invalid service selected")
-    
-    self.service_id = service_id
-    self.branch = branch_code
-    self.status = 'waiting'
-    self.notes = notes
-    self.last_visit = datetime.utcnow()
-    self.total_visits += 1
-    
-    # Clear any previous queue data
-    self.barber_id = None
-    self.assigned_at = None
-    self.completed_at = None
-
-# Add this to the Customer class
-Customer.add_to_queue = add_to_queue_fixed
 
 @app.route('/queue/<branch_code>')
 @login_required
