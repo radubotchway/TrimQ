@@ -237,6 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Validate name
         if (nameInput.value.trim().length < 2) {
             nameInput.classList.add('is-invalid');
+            nameInput.classList.remove('is-valid');
             isValid = false;
         } else {
             nameInput.classList.remove('is-invalid');
@@ -247,28 +248,51 @@ document.addEventListener('DOMContentLoaded', function() {
         const phonePattern = /^(\+233|0)(2[0-9]|5[0-9]|24|54|27|57|26|56)[0-9]{7}$/;
         if (!phonePattern.test(phoneInput.value.replace(/\s+/g, ''))) {
             phoneInput.classList.add('is-invalid');
+            phoneInput.classList.remove('is-valid');
             isValid = false;
         } else {
             phoneInput.classList.remove('is-invalid');
             phoneInput.classList.add('is-valid');
         }
         
-        // Validate service selection
+        // Validate service selection (but don't add visual styling)
         if (!serviceSelect.value || serviceSelect.value === '0') {
-            serviceSelect.classList.add('is-invalid');
-            serviceSelect.classList.remove('is-valid');
             isValid = false;
-        } else {
-            serviceSelect.classList.remove('is-invalid');
-            serviceSelect.classList.add('is-valid');
-        }        
+        }
+        
         return isValid;
     }
     
     // Add validation listeners (only after user interaction)
-    nameInput.addEventListener('blur', validateForm);
-    phoneInput.addEventListener('blur', validateForm);
-    serviceSelect.addEventListener('change', validateForm);
+    let hasInteracted = {
+        name: false,
+        phone: false,
+        service: false
+    };
+
+    nameInput.addEventListener('blur', function() {
+        hasInteracted.name = true;
+        validateForm();
+    });
+
+    phoneInput.addEventListener('blur', function() {
+        hasInteracted.phone = true;
+        validateForm();
+    });
+
+
+    // Only validate fields that have been interacted with
+    nameInput.addEventListener('input', function() {
+        if (hasInteracted.name) {
+            validateForm();
+        }
+    });
+
+    phoneInput.addEventListener('input', function() {
+        if (hasInteracted.phone) {
+            validateForm();
+        }
+    });
 
     // Also validate on form submission attempt
     nameInput.addEventListener('input', function() {
@@ -285,6 +309,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Form submission with loading state
     form.addEventListener('submit', function(e) {
+        // Force validation of all fields on submit
+        hasInteracted.name = true;
+        hasInteracted.phone = true;
+        hasInteracted.service = true;
+
         if (!validateForm()) {
             e.preventDefault();
             return;
@@ -496,14 +525,13 @@ function clearForm() {
     const form = document.getElementById('customerForm');
     form.reset();
     
-    // Remove all validation classes
-    form.querySelectorAll('.is-valid, .is-invalid').forEach(el => {
-        el.classList.remove('is-valid', 'is-invalid');
-    });
-    
-    // Reset ticket preview
-    document.getElementById('print_ticket').checked = true;
-    document.getElementById('ticketPreview').style.display = 'block';
+    // Remove validation classes only from name and phone inputs
+        nameInput.classList.remove('is-valid', 'is-invalid');
+        phoneInput.classList.remove('is-valid', 'is-invalid');
+        
+        // Reset ticket preview
+        document.getElementById('print_ticket').checked = true;
+        document.getElementById('ticketPreview').style.display = 'block';
 }
 
 function fillSampleData() {
@@ -593,19 +621,6 @@ document.addEventListener('keydown', function(e) {
     background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
 }
 
-.form-select.is-valid {
-    border-color: #198754;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%23198754' d='m2.3 6.73.4.4c.4.4.8.4 1.2 0l2.8-2.8c.4-.4.4-.8 0-1.2s-.8-.4-1.2 0L3.7 5 2.6 3.9c-.4-.4-.8-.4-1.2 0s-.4.8 0 1.2l.9.6z'/%3e%3c/svg%3e"), url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
-    background-position: right calc(0.375em + 0.1875rem) center, right 0.75rem center;
-    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem), 16px 12px;
-}
-
-.form-select.is-invalid {
-    border-color: #dc3545;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23dc3545'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath d='m5.8 4.6 2.4 2.4M8.2 4.6l-2.4 2.4'/%3e%3c/svg%3e"), url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
-    background-position: right calc(0.375em + 0.1875rem) center, right 0.75rem center;
-    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem), 16px 12px;
-}
 
 /* Recently added customers styling */
 .recently-added-item {
