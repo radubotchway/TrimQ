@@ -1760,6 +1760,11 @@ def api_remove_customer(customer_id):
             }), 400
         
         customer_name = customer.name
+        
+        # Also delete associated visit records to avoid foreign key constraints
+        CustomerVisit.query.filter_by(customer_id=customer.id).delete()
+        
+        # Delete the customer record
         db.session.delete(customer)
         db.session.commit()
         
@@ -1769,6 +1774,8 @@ def api_remove_customer(customer_id):
         })
         
     except Exception as e:
+        db.session.rollback()
+        print(f"Error in api_remove_customer: {e}")
         return jsonify({
             'success': False, 
             'message': f'Error removing customer: {str(e)}'
