@@ -450,9 +450,11 @@
 
         /* Logo styling */
         .navbar-logo {
-            height: 35px;
+            height: 100px;
             width: auto;
             transition: all 0.3s ease;
+            position: relative;
+            left: -30px;
         }
 
         .navbar-logo:hover {
@@ -461,7 +463,7 @@
 
         @media (max-width: 768px) {
             .navbar-logo {
-                height: 28px;
+                height: 90px;
             }
         }
     </style>
@@ -471,8 +473,7 @@
     <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
-                <img src="/static/images/logo.png" alt="TrimQ" class="navbar-logo me-2">
-                TrimQ
+                <img src="/static/images/logo.png" alt="Barbers Academy" class="navbar-logo">
             </a>
             
             {% if current_user.is_authenticated %}
