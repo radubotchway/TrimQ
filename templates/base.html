@@ -9,17 +9,26 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #2563eb;
-            --secondary-color: #f1f5f9;
+            /* Barbers Academy Brand Colors */
+            --primary-color: #1e40af; /* Blue from logo */
+            --academy-red: #dc2626; /* Red from logo */
+            --academy-dark: #1f2937; /* Dark gray/black from logo */
+            --academy-white: #ffffff;
+            
+            /* Keep existing variables but update values */
+            --secondary-color: #f8fafc;
             --accent-color: #10b981;
             --warning-color: #f59e0b;
-            --danger-color: #ef4444;
+            --danger-color: var(--academy-red);
+            
+            /* Keep Ghana colors for cultural elements */
             --ghana-gold: #ffd700;
             --ghana-green: #006b3c;
             --ghana-red: #ce1126;
-            --text-dark: #1e293b;
+            
+            --text-dark: var(--academy-dark);
             --text-light: #64748b;
-            --border-radius: 16px;
+            --border-radius: 12px;
             --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
@@ -40,12 +49,12 @@
 
         /* SIMPLIFIED Z-INDEX HIERARCHY - KEY FIX: Like your working simplified version */
         .navbar {
-            background: linear-gradient(135deg, var(--ghana-green) 0%, var(--primary-color) 100%);
+            background: linear-gradient(135deg, var(--academy-dark) 0%, var(--primary-color) 70%, var(--academy-red) 100%);
             backdrop-filter: blur(10px);
             box-shadow: var(--shadow-lg);
             padding: 1rem 0;
             position: relative;
-            z-index: 1030; /* Bootstrap default - keep simple */
+            z-index: 1030;
         }
 
         .navbar-brand {
@@ -116,15 +125,17 @@
             background: white;
             position: relative;
             z-index: 1; /* Simple base layer */
+            border-left: 4px solid transparent;
         }
 
         .card:hover {
             box-shadow: var(--shadow-lg);
             transform: translateY(-2px);
+            border-left: 4px solid var(--primary-color);
         }
 
         .card-header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--academy-dark) 100%);
             color: white;
             border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
             border: none;
@@ -133,11 +144,11 @@
         }
 
         .master-header {
-            background: linear-gradient(135deg, var(--ghana-green) 0%, var(--ghana-gold) 100%);
+            background: linear-gradient(135deg, var(--academy-dark) 0%, var(--academy-red) 100%);
         }
 
         .branch-header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--academy-red) 100%);
         }
 
         .btn {
@@ -180,10 +191,16 @@
             box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
         }
 
-        .btn-ghana {
-            background: linear-gradient(135deg, var(--ghana-green) 0%, var(--ghana-gold) 100%);
+        .btn-academy {
+            background: linear-gradient(135deg, var(--academy-red) 0%, var(--primary-color) 100%);
             color: white;
-            box-shadow: 0 4px 15px rgba(0, 107, 60, 0.3);
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-academy:hover {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--academy-red) 100%);
+            transform: translateY(-2px);
+            color: white;
         }
 
         .form-control, .form-select {
@@ -234,7 +251,7 @@
         }
 
         .hero-section {
-            background: linear-gradient(135deg, var(--ghana-green) 0%, var(--primary-color) 100%);
+            background: linear-gradient(135deg, var(--academy-dark) 0%, var(--primary-color) 50%, var(--academy-red) 100%);
             color: white;
             padding: 4rem 0;
             border-radius: var(--border-radius);
@@ -409,6 +426,13 @@
             color: white;
             border: none;
             font-weight: 600;
+        }
+
+        .academy-accent {
+            height: 3px;
+            background: linear-gradient(to right, var(--academy-red) 50%, var(--primary-color) 50%);
+            width: 100%;
+            margin-bottom: 1rem;
         }
 
         /* Enhanced transitions */
