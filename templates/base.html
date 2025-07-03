@@ -457,6 +457,11 @@
                                     <i class="bi bi-graph-up"></i> Revenue Reports
                                 </a>
                             </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('manage_customers') }}">
+                                    <i class="bi bi-people"></i> Customers
+                                </a>
+                            </li>
                         {% else %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ url_for('add_customer', branch_code=current_user.branch) }}">
@@ -476,6 +481,11 @@
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ url_for('revenue_report') }}">
                                     <i class="bi bi-graph-up"></i> Revenue
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('manage_customers') }}">
+                                    <i class="bi bi-people"></i> Customers
                                 </a>
                             </li>
                         {% endif %}
