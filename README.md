@@ -6,6 +6,24 @@ A comprehensive multi-branch queue management system designed specifically for G
 ![Ghana Ready](https://img.shields.io/badge/Ghana-Ready-green?style=for-the-badge) 
 ![Multi Branch](https://img.shields.io/badge/Multi-Branch-blue?style=for-the-badge)
 
+## 📸 Screenshots
+
+### Customer intake
+
+Staff add a walk-in, pick a service from the branch's catalogue, and optionally generate a printable ticket carrying the queue number and estimated wait.
+
+![Adding a customer to the queue](docs/intake-form.jpg)
+
+### Queue board
+
+Who is waiting, who is being served and by which barber, and the day's revenue totalled live underneath. Assigning a customer to a barber moves them across and starts the clock.
+
+![Branch queue board showing waiting and in-progress columns](docs/queue-display.jpg)
+
+### Branch dashboard
+
+![Branch dashboard with waiting, in-progress, completed and active-barber counts](docs/branch-dashboard.jpg)
+
 ## 🌟 Key Features
 
 ### 🏢 Multi-Branch Franchise Management
