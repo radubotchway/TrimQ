@@ -9,24 +9,24 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            /* Barbers Academy Brand Colors */
+            /* TrimQ brand colours */
             --primary-color: #1e40af; /* Blue from logo */
-            --academy-red: #dc2626; /* Red from logo */
-            --academy-dark: #1f2937; /* Dark gray/black from logo */
-            --academy-white: #ffffff;
+            --brand-red: #dc2626; /* Red from logo */
+            --brand-dark: #1f2937; /* Dark gray/black from logo */
+            --brand-white: #ffffff;
             
             /* Keep existing variables but update values */
             --secondary-color: #f8fafc;
             --accent-color: #10b981;
             --warning-color: #f59e0b;
-            --danger-color: var(--academy-red);
+            --danger-color: var(--brand-red);
             
             /* Keep Ghana colors for cultural elements */
             --ghana-gold: #ffd700;
             --ghana-green: #006b3c;
             --ghana-red: #ce1126;
             
-            --text-dark: var(--academy-dark);
+            --text-dark: var(--brand-dark);
             --text-light: #64748b;
             --border-radius: 12px;
             --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -49,7 +49,7 @@
 
         /* SIMPLIFIED Z-INDEX HIERARCHY - KEY FIX: Like your working simplified version */
         .navbar {
-            background: linear-gradient(135deg, var(--academy-dark) 0%, var(--primary-color) 70%, var(--academy-red) 100%);
+            background: linear-gradient(135deg, var(--brand-dark) 0%, var(--primary-color) 70%, var(--brand-red) 100%);
             backdrop-filter: blur(10px);
             box-shadow: var(--shadow-lg);
             padding: 1rem 0;
@@ -135,7 +135,7 @@
         }
 
         .card-header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--academy-dark) 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--brand-dark) 100%);
             color: white;
             border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
             border: none;
@@ -144,11 +144,11 @@
         }
 
         .master-header {
-            background: linear-gradient(135deg, var(--academy-dark) 0%, var(--academy-red) 100%);
+            background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand-red) 100%);
         }
 
         .branch-header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--academy-red) 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--brand-red) 100%);
         }
 
         .btn {
@@ -191,14 +191,14 @@
             box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
         }
 
-        .btn-academy {
-            background: linear-gradient(135deg, var(--academy-red) 0%, var(--primary-color) 100%);
+        .btn-brand {
+            background: linear-gradient(135deg, var(--brand-red) 0%, var(--primary-color) 100%);
             color: white;
             box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
         }
 
-        .btn-academy:hover {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--academy-red) 100%);
+        .btn-brand:hover {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--brand-red) 100%);
             transform: translateY(-2px);
             color: white;
         }
@@ -251,7 +251,7 @@
         }
 
         .hero-section {
-            background: linear-gradient(135deg, var(--academy-dark) 0%, var(--primary-color) 50%, var(--academy-red) 100%);
+            background: linear-gradient(135deg, var(--brand-dark) 0%, var(--primary-color) 50%, var(--brand-red) 100%);
             color: white;
             padding: 4rem 0;
             border-radius: var(--border-radius);
@@ -428,9 +428,9 @@
             font-weight: 600;
         }
 
-        .academy-accent {
+        .brand-accent {
             height: 3px;
-            background: linear-gradient(to right, var(--academy-red) 50%, var(--primary-color) 50%);
+            background: linear-gradient(to right, var(--brand-red) 50%, var(--primary-color) 50%);
             width: 100%;
             margin-bottom: 1rem;
         }
@@ -449,21 +449,21 @@
         }
 
         /* Logo styling */
-        .navbar-logo {
-            height: 100px;
-            width: auto;
+        .navbar-wordmark {
+            font-size: 1.9rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--brand-white);
             transition: all 0.3s ease;
-            position: relative;
-            left: -30px;
         }
 
-        .navbar-logo:hover {
+        .navbar-wordmark:hover {
             transform: scale(1.05);
         }
 
         @media (max-width: 768px) {
-            .navbar-logo {
-                height: 90px;
+            .navbar-wordmark {
+                font-size: 1.6rem;
             }
         }
     </style>
@@ -473,7 +473,7 @@
     <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
-                <img src="/static/images/logo.png" alt="Barbers Academy" class="navbar-logo">
+                <span class="navbar-wordmark">TrimQ</span>
             </a>
             
             {% if current_user.is_authenticated %}
