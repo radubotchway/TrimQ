@@ -37,7 +37,7 @@ Who is waiting, who is being served and by which barber, and the day's revenue t
 - **Customer Registration**: Name, phone, service selection with notes
 - **Barber Assignment**: Real-time staff allocation and tracking
 - **Wait Time Estimation**: Automatic calculations based on service duration
-- **Ticket Generation**: Professional printable tickets with QR codes
+- **Ticket Generation**: Printable ticket carrying the queue number, service and estimated wait
 
 ### 💰 Financial Management
 - **Ghana Cedis Integration**: Built-in GH₵ currency support
@@ -212,9 +212,8 @@ Who is waiting, who is being served and by which barber, and the day's revenue t
 - **Hourly Trends**: Peak business hours identification
 
 ### Customer Analytics
-- **Visit Frequency**: Customer loyalty tracking
+- **Visit Frequency**: Repeat visits per customer, from the visit history table
 - **Service Preferences**: Most requested services per customer
-- **Geographic Analysis**: Customer distribution by area
 - **Growth Metrics**: New vs. returning customer ratios
 
 ### Operational Insights
@@ -229,7 +228,7 @@ Who is waiting, who is being served and by which barber, and the day's revenue t
 - **Password Hashing**: Secure password storage using Werkzeug
 - **Session Management**: Flask-Login for secure user sessions
 - **Role Verification**: Strict access control based on permissions
-- **CSRF Protection**: Form security against cross-site attacks
+- **CSRF Protection**: Flask-WTF form tokens on the forms that use FlaskForm
 
 ### Input Validation
 - **Server-Side Validation**: All user inputs validated
@@ -241,7 +240,7 @@ Who is waiting, who is being served and by which barber, and the day's revenue t
 
 ### Backend Stack
 - **Framework**: Flask (Python)
-- **Database**: SQLite (development) / PostgreSQL (production)
+- **Database**: SQLite via Flask-SQLAlchemy. Single file, single machine.
 - **Authentication**: Flask-Login with role-based access
 - **Forms**: Flask-WTF + WTForms with validation
 - **File Handling**: Werkzeug with PIL for image processing
@@ -264,9 +263,8 @@ Who is waiting, who is being served and by which barber, and the day's revenue t
 ## 🚀 Production Deployment
 
 ### Security Checklist
-- [ ] Update `SECRET_KEY` in application configuration
+- [ ] Set `SECRET_KEY` in the environment. A random key is generated when it is unset, so every restart drops all sessions
 - [ ] Change all default passwords for user accounts
-- [ ] Configure production database (PostgreSQL recommended)
 - [ ] Enable HTTPS with SSL certificates
 - [ ] Set up proper logging and monitoring
 - [ ] Configure automated backup strategy
@@ -276,7 +274,6 @@ Who is waiting, who is being served and by which barber, and the day's revenue t
 ```bash
 # Production environment variables
 export SECRET_KEY="your-production-secret-key-here"
-export DATABASE_URL="postgresql://user:password@localhost/trimq_production"
 export FLASK_ENV="production"
 export MAIL_SERVER="your-smtp-server.com"
 export MAIL_USERNAME="your-email@domain.com"
@@ -286,7 +283,6 @@ export MAIL_PASSWORD="your-email-password"
 ### Performance Optimization
 - Use production WSGI server (Gunicorn recommended)
 - Configure reverse proxy (Nginx) for static file serving
-- Enable database connection pooling
 - Implement Redis for session storage
 - Set up CDN for static assets
 
@@ -296,7 +292,6 @@ export MAIL_PASSWORD="your-email-password"
 - **Touch-Friendly**: Large buttons and touch targets
 - **Readable Text**: Optimized font sizes for mobile screens
 - **Fast Loading**: Optimized images and minimal JavaScript
-- **Offline Capability**: Service worker for basic offline functionality
 
 ### Public Display Optimization
 - **Large Screen Support**: Optimized for TV displays in waiting areas
@@ -325,7 +320,6 @@ This TrimQ system is designed specifically for Ghanaian small businesses and can
 - Complete source code with documentation
 - Sample data for immediate testing
 - Customizable branding and styling
-- Multi-language support capability (English + local languages)
 
 ## 🤝 Contributing
 
