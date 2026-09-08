@@ -69,3 +69,5 @@ logs/
 # Backup files
 *.bak
 *.backup
+# Local-only: pre-rewrite history backup, kept off the remote
+_backup_before_history_rewrite/
