@@ -22,8 +22,13 @@ load_dotenv()  # Load environment variables from .env file
 
 # Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///trimq_franchise.db'
+# Session signing key. Set SECRET_KEY in the environment for any deployment.
+# Without it a random key is generated at startup, which is safe but invalidates
+# existing sessions on every restart.
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
+# Defaults to the local SQLite file. DATABASE_URL can override it, but SQLite is
+# the only backend this app has been run against and the only driver in requirements.txt.
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///trimq_franchise.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'static/uploads/customers'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
